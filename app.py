@@ -38,6 +38,29 @@ if "historico" not in st.session_state:
     st.session_state.vip = False
     st.session_state.ysis_falando = False
 
+# Função para gerar o GIF animado da Ysis
+
+def gerar_gif_ysis():
+    gif_path = "static/ysis_b.gif"
+    if not os.path.exists(gif_path):
+        imagens = []
+        arquivos = sorted([f for f in os.listdir("static") if f.startswith("ysis") and f.endswith((".jpg", ".png"))])
+        for arquivo in arquivos:
+            caminho = os.path.join("static", arquivo)
+            imagem = Image.open(caminho).resize((300, 300))
+            imagens.append(imagem.convert("RGBA"))
+        if imagens:
+            imagens[0].save(
+                gif_path,
+                save_all=True,
+                append_images=imagens[1:],
+                duration=600,
+                loop=0
+            )
+
+# Gera o gif no início
+gerar_gif_ysis()
+
 # Ativação do modo adulto leve
 if not st.session_state.modo_adulto:
     st.info("🔞 Este é um ambiente de fantasia romântica. Deseja ativar o modo mais intenso de sedução com Ysis?")
@@ -83,9 +106,9 @@ def exibir_historico():
     if os.path.exists(config_padrao["memoria_path"]):
         with open(config_padrao["memoria_path"], "r", encoding="utf-8") as f:
             conversas = json.load(f)
-            st.markdown("## 📖 Histórico")
+            st.markdown("<h2 style='color:#ff69b4'>📒 Histórico</h2>", unsafe_allow_html=True)
             for item in conversas[::-1]:
-                st.markdown(f"**Você:** {item['pergunta']}  \n**Ysis:** {item['resposta']}")
+                st.markdown(f"<b>Você:</b> {item['pergunta']}<br><b>Ysis:</b> {item['resposta']}", unsafe_allow_html=True)
                 st.markdown("<hr>", unsafe_allow_html=True)
 
 # Função para carregar loja
