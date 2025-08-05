@@ -51,7 +51,10 @@ if not st.session_state.modo_adulto:
 def conversar_com_ysis(mensagem_usuario):
     st.session_state.historico.append({"role": "user", "parts": [mensagem_usuario]})
     try:
-        resposta = model.generate_content(st.session_state.historico, generation_config={"max_output_tokens": 800})
+        resposta = model.generate_content(
+            st.session_state.historico,
+            generation_config={"max_output_tokens": 600}  # reduzido para evitar 504
+        )
         st.session_state.historico.append({"role": "model", "parts": [resposta.text]})
         salvar_conversa(mensagem_usuario, resposta.text)
         st.session_state.moedas += 1
@@ -105,15 +108,17 @@ def surpresa_romantica():
     return random.choice(opcoes)
 
 # Layout da página
-st.set_page_config(page_title="Ysis", page_icon="💖", layout="centered")
+st.set_page_config(page_title="Ysis", page_icon="🌟", layout="centered")
 
 st.markdown("""
     <style>
     h1 {
         text-align: center;
         font-size: 50px;
-        color: #ff3366;
-        text-shadow: 0px 0px 10px #ff66cc;
+        color: #ff4ec2;
+        text-shadow: 0px 0px 12px #ff99cc, 0px 0px 25px #ff0055;
+        font-family: 'Courier New', monospace;
+        letter-spacing: 3px;
     }
     .stTextInput > div > input {
         font-size: 18px;
@@ -128,7 +133,7 @@ st.markdown("""
         box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
     }
     </style>
-    <h1>💖 Ysis 💖</h1>
+    <h1>✦ YSIS ✦</h1>
 """, unsafe_allow_html=True)
 
 # Imagem da Ysis
