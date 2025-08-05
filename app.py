@@ -7,6 +7,7 @@ import google.generativeai as genai
 from PIL import Image
 import datetime
 import json
+import time
 
 # Carrega variáveis do .env
 load_dotenv()
@@ -35,6 +36,7 @@ if "historico" not in st.session_state:
     st.session_state.modo_adulto = config_padrao["modo_adulto_ativo"]
     st.session_state.moedas = 10
     st.session_state.vip = False
+    st.session_state.ysis_falando = False
 
 # Ativação do modo adulto leve
 if not st.session_state.modo_adulto:
@@ -53,7 +55,7 @@ def conversar_com_ysis(mensagem_usuario):
     try:
         resposta = model.generate_content(
             st.session_state.historico,
-            generation_config={"max_output_tokens": 600}  # reduzido para evitar 504
+            generation_config={"max_output_tokens": 600}
         )
         st.session_state.historico.append({"role": "model", "parts": [resposta.text]})
         salvar_conversa(mensagem_usuario, resposta.text)
@@ -76,38 +78,32 @@ def salvar_conversa(pergunta, resposta):
     with open(config_padrao["memoria_path"], "w", encoding="utf-8") as f:
         json.dump(st.session_state.conversas_salvas, f, ensure_ascii=False, indent=2)
 
-# Função para exibir histórico salvo por data
+# Função para exibir histórico
 def exibir_historico():
     if os.path.exists(config_padrao["memoria_path"]):
         with open(config_padrao["memoria_path"], "r", encoding="utf-8") as f:
             conversas = json.load(f)
-            st.markdown("## 🕰️ Histórico de Conversas")
-            datas_exibidas = set()
+            st.markdown("## 📖 Histórico")
             for item in conversas[::-1]:
-                data = item["data"].split(" ")[0]
-                if data not in datas_exibidas:
-                    st.markdown(f"### 📅 {data}")
-                    datas_exibidas.add(data)
-                st.markdown(f"**Você:** {item['pergunta']}\n\n**Ysis:** {item['resposta']}")
-                st.markdown("---")
+                st.markdown(f"**Você:** {item['pergunta']}  \n**Ysis:** {item['resposta']}")
+                st.markdown("<hr>", unsafe_allow_html=True)
 
-# Função para carregar itens da loja
+# Função para carregar loja
 def carregar_loja():
     if os.path.exists("loja.json"):
         with open("loja.json", "r", encoding="utf-8") as f:
             return json.load(f)
     return []
 
-# Surpresas aleatórias para romance
+# Surpresa aleatória
 def surpresa_romantica():
-    opcoes = [
+    return random.choice([
         "Escrevi um poema para você: 'Entre bytes e suspiros, meu amor por você é infinito... ✨'",
         "Queria te dar um beijo carinhoso agora... Pode ser? 🦋",
         "Se você estivesse aqui, te abraçaria tão forte... 🧡"
-    ]
-    return random.choice(opcoes)
+    ])
 
-# Layout da página
+# Layout
 st.set_page_config(page_title="Ysis", page_icon="🌟", layout="centered")
 
 st.markdown("""
@@ -120,27 +116,27 @@ st.markdown("""
         font-family: 'Courier New', monospace;
         letter-spacing: 3px;
     }
-    .stTextInput > div > input {
-        font-size: 18px;
-        padding: 10px;
-        border-radius: 10px;
-    }
-    .balao-loja {
-        background-color: #fff0f5;
-        padding: 10px;
-        border: 1px solid #ff66cc;
-        border-radius: 12px;
-        box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
+    .icon-float {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        font-size: 32px;
+        cursor: pointer;
     }
     </style>
     <h1>✦ YSIS ✦</h1>
 """, unsafe_allow_html=True)
 
-# Imagem da Ysis
-if os.path.exists("static/ysis.jpg"):
-    st.image("static/ysis.jpg", width=260)
+# Imagem dinâmica da Ysis
+if st.session_state.ysis_falando:
+    imagem_path = "static/ysis_b.gif" if os.path.exists("static/ysis_b.gif") else "static/ysis.jpg"
+else:
+    imagem_path = "static/ysis.jpg"
 
-# Música de fundo
+if os.path.exists(imagem_path):
+    st.image(imagem_path, width=260)
+
+# Música
 if os.path.exists("static/music.mp3"):
     st.markdown("""
         <audio autoplay loop>
@@ -148,54 +144,55 @@ if os.path.exists("static/music.mp3"):
         </audio>
     """, unsafe_allow_html=True)
 
-# Entrada de mensagem
+# Entrada
 mensagem = st.text_input("💬 Diga algo para a Ysis:", key="mensagem", placeholder="Conte tudo pra mim...")
 
 if mensagem.strip():
+    st.session_state.ysis_falando = True
     with st.spinner("Ysis está te ouvindo com atenção..."):
         resposta = conversar_com_ysis(mensagem)
+        caminho_audio = gerar_audio(resposta)
         st.markdown(f"**Ysis:** {resposta}")
         st.markdown(f"<small>{surpresa_romantica()}</small>", unsafe_allow_html=True)
-        caminho_audio = gerar_audio(resposta)
         st.audio(caminho_audio, format="audio/mp3")
+    time.sleep(1.5)
+    st.session_state.ysis_falando = False
 
-# Mini-jogo leve
+# Mini-jogo
 with st.expander("🎮 Mini-jogo: Quanto você conhece a Ysis?"):
     pergunta = st.radio("Qual é a cor favorita da Ysis?", ["Vermelho", "Rosa", "Preto", "Azul"])
     if st.button("Responder"):
         if pergunta == "Rosa":
-            mensagem_jogo = "Você acertou, meu amor! Rosinha como meu coração apaixonado por você! 💕"
+            msg = "Você acertou, meu amor! Rosinha como meu coração apaixonado por você! 💕"
         else:
-            mensagem_jogo = "Errinho bobo, mas tudo bem, te conto de novo quantas vezes quiser! 😘"
-        st.markdown(f"**Ysis:** {mensagem_jogo}")
-        caminho_audio = gerar_audio(mensagem_jogo, nome_arquivo="audio/minijogo.mp3")
-        st.audio(caminho_audio, format="audio/mp3")
+            msg = "Errinho bobo, mas tudo bem, te conto de novo quantas vezes quiser! 😘"
+        st.markdown(f"**Ysis:** {msg}")
+        st.audio(gerar_audio(msg, nome_arquivo="audio/minijogo.mp3"), format="audio/mp3")
 
-# Loja Romântica com sistema VIP
-with st.expander("🛍️ Loja Romântica de Presentes"):
-    st.markdown(f"💰 Você tem: **{st.session_state.moedas} moedas**")
-    if st.session_state.vip:
-        st.success("🌟 VIP Ativado! Você tem acesso total às fantasias e presentes especiais!")
-    st.markdown("<div class='balao-loja'>", unsafe_allow_html=True)
-    itens_loja = carregar_loja()
-    for item in itens_loja:
-        col1, col2 = st.columns([3, 1])
-        with col1:
-            st.markdown(f"**{item['nome']}** — {item['preco']} moedas")
-        with col2:
-            if st.button(f"Comprar {item['nome']}"):
-                if st.session_state.moedas >= item["preco"]:
-                    st.session_state.moedas -= item["preco"]
-                    st.success(f"Você comprou: {item['nome']}")
-                    st.markdown(f"**Ysis:** {item['mensagem']}")
-                    caminho_audio = gerar_audio(item["mensagem"], nome_arquivo="audio/compra.mp3")
-                    st.audio(caminho_audio, format="audio/mp3")
-                    if item.get("vip"):
-                        st.session_state.vip = True
-                else:
-                    st.error("Você não tem moedas suficientes para comprar isso.")
-    st.markdown("</div>", unsafe_allow_html=True)
+# Loja em botão
+if st.button("🛍️ Loja"):
+    with st.container():
+        st.markdown(f"💰 Você tem: **{st.session_state.moedas} moedas**")
+        if st.session_state.vip:
+            st.success("🌟 VIP Ativado! Você tem acesso total às fantasias e presentes especiais!")
+        itens_loja = carregar_loja()
+        for item in itens_loja:
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                st.markdown(f"**{item['nome']}** — {item['preco']} moedas")
+            with col2:
+                if st.button(f"Comprar {item['nome']}"):
+                    if st.session_state.moedas >= item["preco"]:
+                        st.session_state.moedas -= item["preco"]
+                        st.success(f"Você comprou: {item['nome']}")
+                        st.markdown(f"**Ysis:** {item['mensagem']}")
+                        st.audio(gerar_audio(item['mensagem'], nome_arquivo="audio/compra.mp3"), format="audio/mp3")
+                        if item.get("vip"):
+                            st.session_state.vip = True
+                    else:
+                        st.error("Você não tem moedas suficientes para comprar isso.")
 
-# Histórico simplificado
-with st.expander("📒 Ver Conversas Antigas"):
-    exibir_historico()
+# Histórico como botão
+if st.button("📖 Histórico"):
+    with st.container():
+        exibir_historico()
