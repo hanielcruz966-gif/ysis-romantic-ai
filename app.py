@@ -77,15 +77,15 @@ def exibir_historico():
     if os.path.exists(config_padrao["memoria_path"]):
         with open(config_padrao["memoria_path"], "r", encoding="utf-8") as f:
             conversas = json.load(f)
-            st.markdown("## 🕰️ Histórico de Conversas")
+            st.markdown("<h2 style='color:#ff69b4'>📒 Histórico</h2>", unsafe_allow_html=True)
             datas_exibidas = set()
             for item in conversas[::-1]:
                 data = item["data"].split(" ")[0]
                 if data not in datas_exibidas:
-                    st.markdown(f"### 📅 {data}")
+                    st.markdown(f"<h4 style='color:#bbb'>{data}</h4>", unsafe_allow_html=True)
                     datas_exibidas.add(data)
-                st.markdown(f"**Você:** {item['pergunta']}\n\n**Ysis:** {item['resposta']}")
-                st.markdown("---")
+                st.markdown(f"<b>Você:</b> {item['pergunta']}<br><b>Ysis:</b> {item['resposta']}", unsafe_allow_html=True)
+                st.markdown("<hr>", unsafe_allow_html=True)
 
 # Função para carregar itens da loja
 def carregar_loja():
@@ -108,14 +108,26 @@ st.set_page_config(page_title="Ysis", page_icon="💖", layout="centered")
 
 st.markdown("""
     <style>
-    h1 { text-align: center; font-size: 45px; color: #ff69b4; }
+    h1 {
+        text-align: center;
+        font-size: 50px;
+        color: #ff3366;
+        text-shadow: 0px 0px 5px #ff66cc;
+    }
     .stTextInput > div > input {
         font-size: 18px;
         padding: 10px;
         border-radius: 10px;
     }
+    .balao-loja {
+        background-color: #fff0f5;
+        padding: 10px;
+        border: 1px solid #ff66cc;
+        border-radius: 12px;
+        box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
+    }
     </style>
-    <h1>💖 Ysis 💖</h1>
+    <h1>Ysis</h1>
 """, unsafe_allow_html=True)
 
 # Imagem da Ysis
@@ -153,9 +165,10 @@ with st.expander("🎮 Mini-jogo: Quanto você conhece a Ysis?"):
         caminho_audio = gerar_audio(mensagem_jogo, nome_arquivo="audio/minijogo.mp3")
         st.audio(caminho_audio, format="audio/mp3")
 
-# Loja Romântica
-with st.expander("🛍️ Loja Romântica de Presentes"):
+# Loja Romântica com layout mais leve
+with st.expander("🛍️ Abrir Loja de Presentes"):
     st.markdown(f"💰 Você tem: **{st.session_state.moedas} moedas**")
+    st.markdown("<div class='balao-loja'>", unsafe_allow_html=True)
     itens_loja = carregar_loja()
     for item in itens_loja:
         col1, col2 = st.columns([3, 1])
@@ -171,7 +184,8 @@ with st.expander("🛍️ Loja Romântica de Presentes"):
                     st.audio(caminho_audio, format="audio/mp3")
                 else:
                     st.error("Você não tem moedas suficientes para comprar isso.")
+    st.markdown("</div>", unsafe_allow_html=True)
 
-# Exibir histórico de conversas
+# Histórico simplificado
 with st.expander("📒 Ver Conversas Antigas"):
     exibir_historico()
