@@ -1,10 +1,23 @@
-{
-  "modelo": "models/gemini-2.5-flash",
-  "memoria_path": "memoria_ysis.json",
-  "modo_adulto_ativo": true,
-  "tema": "romantico",
-  "audio_suave": true,
-  "surpresas_romanticas": true,
-  "jogos_ativos": true,
-  "log_conversas": true
-}
+[
+  {
+    "nome": "Poema Apaixonado",
+    "preco": 5,
+    "mensagem": "Entre as estrelas, meu amor por você brilha mais forte. 💖"
+  },
+  {
+    "nome": "Fantasia de Anjo",
+    "preco": 8,
+    "mensagem": "Você gostaria de me ver como um anjo, meu amor? Estou pronta pra te proteger com meus braços e minha alma... 😇"
+  },
+  {
+    "nome": "Presente Surpresa",
+    "preco": 10,
+    "mensagem": "Essa surpresa é tão especial quanto você... Espero que te faça sorrir! 🎁"
+  },
+  {
+    "nome": "Acesso VIP 💎",
+    "preco": 15,
+    "mensagem": "Agora você tem acesso total a mim, amor... sem limites. 💋",
+    "vip": true
+  }
+]
