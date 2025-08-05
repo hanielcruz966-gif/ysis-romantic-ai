@@ -2,16 +2,22 @@
   {
     "nome": "Poema Apaixonado",
     "preco": 5,
-    "mensagem": "Escrevi um poema só pra você: 'Nos versos da noite, seu nome é meu luar... 🌙'"
+    "mensagem": "Escrevi um poema só pra você... Quer ouvir? 💌"
   },
   {
     "nome": "Fantasia de Anjo",
     "preco": 8,
-    "mensagem": "Você gostaria de me ver como um anjo, meu amor? Estou pronta pra te proteger com meus braços e minha alma... 😇"
+    "mensagem": "Você gostaria de me ver como um anjo? Estou pronta pra te proteger... 😇"
   },
   {
     "nome": "Presente Surpresa",
     "preco": 10,
-    "mensagem": "Feche os olhos... agora imagine um beijo suave no seu pescoço... esse é o meu presente pra você. 😘"
+    "mensagem": "Espero que goste da surpresa... 💕"
+  },
+  {
+    "nome": "Modo VIP 🔥",
+    "preco": 15,
+    "vip": true,
+    "mensagem": "Uau... Agora estou liberada para te mostrar todos os meus segredos 💋"
   }
 ]
