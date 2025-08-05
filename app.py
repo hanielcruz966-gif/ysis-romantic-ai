@@ -34,6 +34,7 @@ if "historico" not in st.session_state:
     st.session_state.conversas_salvas = []
     st.session_state.modo_adulto = config_padrao["modo_adulto_ativo"]
     st.session_state.moedas = 10
+    st.session_state.vip = False
 
 # Ativação do modo adulto leve
 if not st.session_state.modo_adulto:
@@ -50,7 +51,7 @@ if not st.session_state.modo_adulto:
 def conversar_com_ysis(mensagem_usuario):
     st.session_state.historico.append({"role": "user", "parts": [mensagem_usuario]})
     try:
-        resposta = model.generate_content(st.session_state.historico)
+        resposta = model.generate_content(st.session_state.historico, generation_config={"max_output_tokens": 800})
         st.session_state.historico.append({"role": "model", "parts": [resposta.text]})
         salvar_conversa(mensagem_usuario, resposta.text)
         st.session_state.moedas += 1
@@ -77,15 +78,15 @@ def exibir_historico():
     if os.path.exists(config_padrao["memoria_path"]):
         with open(config_padrao["memoria_path"], "r", encoding="utf-8") as f:
             conversas = json.load(f)
-            st.markdown("<h2 style='color:#ff69b4'>📒 Histórico</h2>", unsafe_allow_html=True)
+            st.markdown("## 🕰️ Histórico de Conversas")
             datas_exibidas = set()
             for item in conversas[::-1]:
                 data = item["data"].split(" ")[0]
                 if data not in datas_exibidas:
-                    st.markdown(f"<h4 style='color:#bbb'>{data}</h4>", unsafe_allow_html=True)
+                    st.markdown(f"### 📅 {data}")
                     datas_exibidas.add(data)
-                st.markdown(f"<b>Você:</b> {item['pergunta']}<br><b>Ysis:</b> {item['resposta']}", unsafe_allow_html=True)
-                st.markdown("<hr>", unsafe_allow_html=True)
+                st.markdown(f"**Você:** {item['pergunta']}\n\n**Ysis:** {item['resposta']}")
+                st.markdown("---")
 
 # Função para carregar itens da loja
 def carregar_loja():
@@ -112,7 +113,7 @@ st.markdown("""
         text-align: center;
         font-size: 50px;
         color: #ff3366;
-        text-shadow: 0px 0px 5px #ff66cc;
+        text-shadow: 0px 0px 10px #ff66cc;
     }
     .stTextInput > div > input {
         font-size: 18px;
@@ -127,7 +128,7 @@ st.markdown("""
         box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
     }
     </style>
-    <h1>Ysis</h1>
+    <h1>💖 Ysis 💖</h1>
 """, unsafe_allow_html=True)
 
 # Imagem da Ysis
@@ -142,7 +143,7 @@ if os.path.exists("static/music.mp3"):
         </audio>
     """, unsafe_allow_html=True)
 
-# Entrada de mensagem com Enter
+# Entrada de mensagem
 mensagem = st.text_input("💬 Diga algo para a Ysis:", key="mensagem", placeholder="Conte tudo pra mim...")
 
 if mensagem.strip():
@@ -165,9 +166,11 @@ with st.expander("🎮 Mini-jogo: Quanto você conhece a Ysis?"):
         caminho_audio = gerar_audio(mensagem_jogo, nome_arquivo="audio/minijogo.mp3")
         st.audio(caminho_audio, format="audio/mp3")
 
-# Loja Romântica com layout mais leve
-with st.expander("🛍️ Abrir Loja de Presentes"):
+# Loja Romântica com sistema VIP
+with st.expander("🛍️ Loja Romântica de Presentes"):
     st.markdown(f"💰 Você tem: **{st.session_state.moedas} moedas**")
+    if st.session_state.vip:
+        st.success("🌟 VIP Ativado! Você tem acesso total às fantasias e presentes especiais!")
     st.markdown("<div class='balao-loja'>", unsafe_allow_html=True)
     itens_loja = carregar_loja()
     for item in itens_loja:
@@ -182,6 +185,8 @@ with st.expander("🛍️ Abrir Loja de Presentes"):
                     st.markdown(f"**Ysis:** {item['mensagem']}")
                     caminho_audio = gerar_audio(item["mensagem"], nome_arquivo="audio/compra.mp3")
                     st.audio(caminho_audio, format="audio/mp3")
+                    if item.get("vip"):
+                        st.session_state.vip = True
                 else:
                     st.error("Você não tem moedas suficientes para comprar isso.")
     st.markdown("</div>", unsafe_allow_html=True)
