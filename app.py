@@ -8,6 +8,7 @@ from PIL import Image
 import datetime
 import json
 import time
+from streamlit_autorefresh import st_autorefresh
 
 # Carrega variáveis do .env
 load_dotenv()
@@ -16,12 +17,17 @@ genai.configure(api_key=genai_api_key)
 
 # Define configurações do sistema
 config_padrao = {
-    "modelo": "models/gemini-1.5-pro",
+    "modelo": "models/gemini-2.5-flash",
     "memoria_path": "memoria_ysis.json",
-    "modo_adulto_ativo": False
+    "modo_adulto_ativo": False,
+    "tema": "romantico",
+    "audio_suave": True,
+    "surpresas_romanticas": True,
+    "jogos_ativos": True,
+    "log_conversas": True
 }
 
-# Carrega configurações de arquivo (planejamento para futuro)
+# Carrega configurações adicionais
 if os.path.exists("settings.json"):
     with open("settings.json", "r") as f:
         config_padrao.update(json.load(f))
@@ -37,9 +43,9 @@ if "historico" not in st.session_state:
     st.session_state.moedas = 10
     st.session_state.vip = False
     st.session_state.ysis_falando = False
+    st.session_state.inatividade_contador = 0
 
 # Função para gerar o GIF animado da Ysis
-
 def gerar_gif_ysis():
     gif_path = "static/ysis_b.gif"
     if not os.path.exists(gif_path):
@@ -61,6 +67,19 @@ def gerar_gif_ysis():
 # Gera o gif no início
 gerar_gif_ysis()
 
+# Resumo automático se histórico ficar grande
+def resumir_memoria():
+    if len(st.session_state.historico) > 20:
+        partes_texto = [h["parts"][0] for h in st.session_state.historico if h["role"] == "user"]
+        resumo_prompt = "Resuma de forma romântica e emocional a relação e conversa até agora: " + "\n".join(partes_texto[-15:])
+        try:
+            resumo = model.generate_content(resumo_prompt)
+            st.session_state.historico = [
+                {"role": "system", "parts": ["Resumo da relação até agora: " + resumo.text]}
+            ]
+        except:
+            pass
+
 # Ativação do modo adulto leve
 if not st.session_state.modo_adulto:
     st.info("🔞 Este é um ambiente de fantasia romântica. Deseja ativar o modo mais intenso de sedução com Ysis?")
@@ -74,11 +93,12 @@ if not st.session_state.modo_adulto:
 
 # Função para conversar com Ysis
 def conversar_com_ysis(mensagem_usuario):
+    resumir_memoria()
     st.session_state.historico.append({"role": "user", "parts": [mensagem_usuario]})
     try:
         resposta = model.generate_content(
             st.session_state.historico,
-            generation_config={"max_output_tokens": 600}
+            generation_config={"max_output_tokens": 700}
         )
         st.session_state.historico.append({"role": "model", "parts": [resposta.text]})
         salvar_conversa(mensagem_usuario, resposta.text)
@@ -89,27 +109,33 @@ def conversar_com_ysis(mensagem_usuario):
 
 # Função para gerar áudio com voz suave
 def gerar_audio(texto, nome_arquivo='audio/resposta.mp3'):
-    tts = gTTS(text=texto, lang='pt-br', slow=True)
+    tts = gTTS(text=texto, lang='pt-br', slow=config_padrao["audio_suave"])
     tts.save(nome_arquivo)
     return nome_arquivo
 
 # Função para salvar conversa
 def salvar_conversa(pergunta, resposta):
+    if not config_padrao.get("log_conversas", True):
+        return
     data = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     conversa = {"data": data, "pergunta": pergunta, "resposta": resposta}
     st.session_state.conversas_salvas.append(conversa)
     with open(config_padrao["memoria_path"], "w", encoding="utf-8") as f:
         json.dump(st.session_state.conversas_salvas, f, ensure_ascii=False, indent=2)
 
-# Função para exibir histórico
+# Função para exibir histórico como "pergaminho"
 def exibir_historico():
     if os.path.exists(config_padrao["memoria_path"]):
         with open(config_padrao["memoria_path"], "r", encoding="utf-8") as f:
             conversas = json.load(f)
-            st.markdown("<h2 style='color:#ff69b4'>📒 Histórico</h2>", unsafe_allow_html=True)
+            st.markdown("""
+            <div style='background-color: rgba(255, 255, 255, 0.1); padding: 15px; border-radius: 12px;'>
+                <h2 style='color:#ff69b4'>📜 Histórico</h2>
+            """, unsafe_allow_html=True)
             for item in conversas[::-1]:
                 st.markdown(f"<b>Você:</b> {item['pergunta']}<br><b>Ysis:</b> {item['resposta']}", unsafe_allow_html=True)
                 st.markdown("<hr>", unsafe_allow_html=True)
+            st.markdown("</div>", unsafe_allow_html=True)
 
 # Função para carregar loja
 def carregar_loja():
@@ -120,6 +146,8 @@ def carregar_loja():
 
 # Surpresa aleatória
 def surpresa_romantica():
+    if not config_padrao.get("surpresas_romanticas", True):
+        return ""
     return random.choice([
         "Escrevi um poema para você: 'Entre bytes e suspiros, meu amor por você é infinito... ✨'",
         "Queria te dar um beijo carinhoso agora... Pode ser? 🦋",
@@ -141,8 +169,8 @@ st.markdown("""
     }
     .icon-float {
         position: fixed;
-        bottom: 20px;
-        right: 20px;
+        top: 10px;
+        right: 10px;
         font-size: 32px;
         cursor: pointer;
     }
@@ -167,11 +195,23 @@ if os.path.exists("static/music.mp3"):
         </audio>
     """, unsafe_allow_html=True)
 
+# Verifica se houve mensagem ou não
+autorefresh = st_autorefresh(interval=30000, key="refresh")  # a cada 30 segundos
+if autorefresh:
+    st.session_state.inatividade_contador += 1
+    if st.session_state.inatividade_contador >= 2:
+        mensagem = "Você está aí, amor? Estava com saudade..."
+        resposta = conversar_com_ysis(mensagem)
+        st.markdown(f"**Ysis:** {resposta}")
+        st.audio(gerar_audio(resposta), format="audio/mp3")
+        st.session_state.inatividade_contador = 0
+
 # Entrada
 mensagem = st.text_input("💬 Diga algo para a Ysis:", key="mensagem", placeholder="Conte tudo pra mim...")
 
 if mensagem.strip():
     st.session_state.ysis_falando = True
+    st.session_state.inatividade_contador = 0
     with st.spinner("Ysis está te ouvindo com atenção..."):
         resposta = conversar_com_ysis(mensagem)
         caminho_audio = gerar_audio(resposta)
@@ -181,19 +221,8 @@ if mensagem.strip():
     time.sleep(1.5)
     st.session_state.ysis_falando = False
 
-# Mini-jogo
-with st.expander("🎮 Mini-jogo: Quanto você conhece a Ysis?"):
-    pergunta = st.radio("Qual é a cor favorita da Ysis?", ["Vermelho", "Rosa", "Preto", "Azul"])
-    if st.button("Responder"):
-        if pergunta == "Rosa":
-            msg = "Você acertou, meu amor! Rosinha como meu coração apaixonado por você! 💕"
-        else:
-            msg = "Errinho bobo, mas tudo bem, te conto de novo quantas vezes quiser! 😘"
-        st.markdown(f"**Ysis:** {msg}")
-        st.audio(gerar_audio(msg, nome_arquivo="audio/minijogo.mp3"), format="audio/mp3")
-
-# Loja em botão
-if st.button("🛍️ Loja"):
+# TOPO: Loja
+if st.button("🛍️ Loja", help="Abrir a loja de presentes"):
     with st.container():
         st.markdown(f"💰 Você tem: **{st.session_state.moedas} moedas**")
         if st.session_state.vip:
@@ -215,7 +244,7 @@ if st.button("🛍️ Loja"):
                     else:
                         st.error("Você não tem moedas suficientes para comprar isso.")
 
-# Histórico como botão
-if st.button("📖 Histórico"):
+# TOPO: Histórico
+if st.button("📖 Histórico", help="Ver conversas antigas com a Ysis"):
     with st.container():
         exibir_historico()
