@@ -47,7 +47,6 @@ if "chat_history" not in st.session_state:
     st.session_state.audio_to_play = None
     st.session_state.video_to_play = None
     st.session_state.guarda_roupa = ["static/ysis.jpg"]
-    st.session_state.show_shop = False
     st.session_state.chat_history.append(
         {"role": "model", "content": "Olá, meu amor! Que bom te ver de novo. Sobre o que vamos conversar hoje?"}
     )
@@ -147,14 +146,14 @@ st.markdown("""
         /* O "PALCO" VIRTUAL PARA A YSIS */
         .media-container {
             width: 100%;
-            max-width: 400px; /* Limita a largura máxima em telas grandes */
+            max-width: 400px;
             margin: auto;
-            aspect-ratio: 3 / 4; /* Proporção de Retrato Fixa */
+            aspect-ratio: 3 / 4;
             position: relative;
             background-color: #000;
-            border-radius: 20px; /* Bordas mais arredondadas */
+            border-radius: 20px;
             border: 3px solid #ff4ec2;
-            box-shadow: 0 0 30px rgba(255, 78, 194, 0.9); /* Sombra neon mais forte */
+            box-shadow: 0 0 30px rgba(255, 78, 194, 0.9);
             overflow: hidden;
         }
         .media-container img, .media-container video {
@@ -163,8 +162,8 @@ st.markdown("""
             left: 0;
             width: 100%;
             height: 100%;
-            object-fit: cover; /* Garante o preenchimento perfeito */
-            border-radius: 17px; /* Borda interna */
+            object-fit: cover;
+            border-radius: 17px;
         }
         
         .chat-history { 
@@ -191,36 +190,8 @@ st.markdown("""
 if "api_error" in st.session_state:
     st.error(f"🚨 FALHA NA CONEXÃO COM A IA: {st.session_state.api_error}", icon="💔")
 
-# Cabeçalho com Ícones e Título
-col1, col2, col3 = st.columns([1, 4, 1])
-with col1:
-    if st.button("🛍️", help="Loja e Guarda-Roupa"):
-        st.session_state.show_shop = not st.session_state.get("show_shop", False)
-with col2:
-    st.markdown('<p class="title">YSIS</p>', unsafe_allow_html=True)
-with col3:
-    st.markdown(f"<div style='text-align: right; padding-top: 25px;'>💰{st.session_state.moedas}</div>", unsafe_allow_html=True)
-
-# Janela Pop-up para Loja e Guarda-Roupa (usando st.expander)
-if st.session_state.get("show_shop", False):
-    with st.expander("🛍️ Loja e Guarda-Roupa", expanded=True):
-        st.subheader("Loja Romântica")
-        for item in carregar_json("loja.json"):
-            cols_loja = st.columns([3, 1])
-            cols_loja[0].markdown(f"**{item['nome']}**")
-            if cols_loja[1].button(f"{item['preco']} 💰", key=f"buy_{item['nome']}", on_click=handle_buy_item, args=(item,)):
-                st.rerun()
-        st.divider()
-        st.subheader(" wardrobe Guarda-Roupa")
-        roupas = st.session_state.guarda_roupa
-        if roupas:
-            num_cols = min(len(roupas), 4)
-            cols_guarda_roupa = st.columns(num_cols)
-            for i, path in enumerate(roupas):
-                if os.path.exists(path):
-                    cols_guarda_roupa[i % num_cols].image(path)
-                    if cols_guarda_roupa[i % num_cols].button("Vestir", key=f"equip_{path}", on_click=handle_equip_item, args=(path,)):
-                        st.rerun()
+# Título
+st.markdown('<p class="title">YSIS</p>', unsafe_allow_html=True)
 
 # "Palco" da Ysis (Vídeo ou Imagem)
 st.markdown('<div class="media-container">', unsafe_allow_html=True)
@@ -241,6 +212,28 @@ else:
 st.markdown(media_html, unsafe_allow_html=True)
 st.markdown('</div>', unsafe_allow_html=True)
 
+# Loja e Guarda-Roupa dentro de um Expander estável e limpo
+with st.expander("🛍️ Abrir Loja e Guarda-Roupa"):
+    st.markdown(f"**Suas Moedas: {st.session_state.moedas}** 💰")
+    st.divider()
+    st.subheader("Loja Romântica")
+    for item in carregar_json("loja.json"):
+        cols_loja = st.columns([3, 1])
+        cols_loja[0].markdown(f"**{item['nome']}**")
+        if cols_loja[1].button(f"{item['preco']} 💰", key=f"buy_{item['nome']}", on_click=handle_buy_item, args=(item,)):
+            st.rerun()
+    st.divider()
+    st.subheader(" wardrobe Guarda-Roupa")
+    roupas = st.session_state.guarda_roupa
+    if roupas:
+        num_cols = min(len(roupas), 4)
+        cols_guarda_roupa = st.columns(num_cols)
+        for i, path in enumerate(roupas):
+            if os.path.exists(path):
+                cols_guarda_roupa[i % num_cols].image(path)
+                if cols_guarda_roupa[i % num_cols].button("Vestir", key=f"equip_{path}", on_click=handle_equip_item, args=(path,)):
+                    st.rerun()
+
 # Histórico do Chat
 chat_container = st.container()
 with chat_container:
@@ -260,6 +253,7 @@ if "audio_to_play" in st.session_state and st.session_state.audio_to_play:
 ```
 
 ### **O Que Fazer Agora**
+
 1.  **Substitua o `app.py`:** Vá ao seu GitHub e substitua todo o conteúdo do seu `app.py` por este código.
 2.  **Reinicie o App:** Vá ao Streamlit Cloud e dê "Reboot app".
 
