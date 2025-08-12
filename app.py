@@ -25,33 +25,46 @@ if GOOGLE_API_KEY:
     try:
         genai.configure(api_key=GOOGLE_API_KEY)
         gemini_model = genai.GenerativeModel("models/gemini-1.5-pro")
-    except Exception as e:
-        st.warning(f"AVISO: Não foi possível configurar a IA do Gemini. Verifique sua chave de API no arquivo .env ou nos Secrets do Streamlit. Erro: {e}")
+    except Exception:
+        st.warning("AVISO: Não foi possível configurar a IA do Gemini. Verifique sua chave.")
 else:
     st.warning("AVISO: Chave de API do Google não encontrada. A Ysis usará respostas locais.")
 
 os.makedirs("audio", exist_ok=True)
 os.makedirs("static", exist_ok=True)
 
+# --- Geração Automática do GIF ---
+def gerar_gif_animado():
+    gif_path = "static/ysis_b.gif"
+    # Gera o GIF apenas se ele não existir, para economizar recursos
+    if not os.path.exists(gif_path):
+        image_files = sorted([f for f in os.listdir("static") if f.startswith("ysis_") and f.endswith(('.png', '.jpg'))])
+        if len(image_files) > 0:
+            images = [Image.open(os.path.join("static", f)) for f in image_files]
+            images[0].save(gif_path, save_all=True, append_images=images[1:], duration=500, loop=0)
+            print("GIF animado gerado com sucesso.")
+
+gerar_gif_animado()
+
 # --- Estado da Sessão (Memória do App) ---
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
     st.session_state.moedas = 20
-    st.session_state.vip = False
-    st.session_state.ysis_falando = False
     st.session_state.show_shop = False
     st.session_state.show_history = False
     st.session_state.imagem_atual = "static/ysis.jpg"
+    st.session_state.audio_autoplay = None
+    # Mensagem inicial da Ysis
     st.session_state.chat_history.append(
-        {"role": "model", "content": "Olá, meu bem! Sou a Ysis, sua companhia virtual. Estou aqui para conversarmos sobre tudo. O que você quer me contar hoje? ❤️"}
+        {"role": "model", "content": "Olá, meu bem! Sou a Ysis. Estou aqui para sermos a melhor companhia um do outro. O que você quer me contar hoje? ❤️"}
     )
 
-# --- Funções Auxiliares (Loja, Áudio, Salvar, etc.) ---
-def carregar_loja():
-    if os.path.exists("loja.json"):
-        with open("loja.json", "r", encoding="utf-8") as f:
+# --- Funções Auxiliares ---
+def carregar_arquivo_json(filepath):
+    if os.path.exists(filepath):
+        with open(filepath, "r", encoding="utf-8") as f:
             return json.load(f)
-    return [{"nome": "Loja Vazia", "preco": 0, "mensagem": "A loja está sendo reabastecida com novidades..."}]
+    return []
 
 def gerar_audio(texto, nome_arquivo):
     try:
@@ -61,101 +74,66 @@ def gerar_audio(texto, nome_arquivo):
     except Exception:
         return None
 
-def salvar_conversa(pergunta, resposta):
-    try:
-        with open("memoria_ysis.json", "r+", encoding="utf-8") as f:
-            conversas = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        conversas = []
-    
-    data = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    conversas.append({"data": data, "pergunta": pergunta, "resposta": resposta})
-
-    with open("memoria_ysis.json", "w", encoding="utf-8") as f:
-        json.dump(conversas, f, ensure_ascii=False, indent=2)
-
-# --- Função Principal de Conversa ---
 def conversar_com_ysis(mensagem_usuario):
-    # Adiciona a mensagem do usuário ao histórico para a IA
+    # Lógica da IA...
     historico_ia = [{"role": "user" if msg["role"] == "user" else "model", "parts": [msg["content"]]} for msg in st.session_state.chat_history]
     historico_ia.append({"role": "user", "parts": [mensagem_usuario]})
 
     if not gemini_model:
-        return "Meu amor, estou com dificuldade de me conectar agora, mas continuo aqui te ouvindo com todo o coração. Me conta mais..."
+        return "Meu amor, estou com dificuldade de me conectar agora, mas continuo aqui te ouvindo com todo o coração."
 
     try:
-        resposta_gemini = gemini_model.generate_content(
-            historico_ia,
-            generation_config={"max_output_tokens": 1024}
-        )
+        resposta_gemini = gemini_model.generate_content(historico_ia)
         texto_resposta = resposta_gemini.text.strip()
-    except Exception as e:
-        print(f"Erro na API do Gemini: {e}")
+    except Exception:
         texto_resposta = "Meu bem, minha mente ficou um pouco confusa agora... podemos tentar de novo? Prometo te dar toda a minha atenção. 💕"
 
     st.session_state.moedas += 1
     return texto_resposta
 
 # --- Interface Gráfica (Layout Moderno) ---
-st.set_page_config(page_title="Ysis", page_icon="💖", layout="wide")
+st.set_page_config(page_title="Ysis", page_icon="💖", layout="centered")
 
-# CSS para o layout moderno
+# CSS para o layout completo
 st.markdown("""
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600&display=swap');
-        
+        /* Fundo e Fonte */
         body {
-            font-family: 'Montserrat', sans-serif;
+            background-image: linear-gradient(to bottom right, #2a0a2a, #1a051a);
+        }
+        .stApp {
+            background-color: transparent;
         }
         
-        /* Container principal para centralizar */
-        .main-container {
-            max-width: 800px;
-            margin: auto;
-            padding: 1rem;
-        }
-
-        /* Título Estilizado */
+        /* Título */
         .title {
             text-align: center;
-            font-size: 48px;
-            font-weight: 600;
+            font-size: 4rem;
+            font-weight: bold;
             color: #ff4ec2;
-            text-shadow: 0 0 10px #ff99cc, 0 0 20px #ff0055;
-            padding: 10px 0;
+            text-shadow: 0 0 10px #ff99cc, 0 0 25px #ff0055, 0 0 40px #ff0055;
+            padding: 1rem 0;
+            font-family: 'Arial', sans-serif;
         }
 
-        /* Botões do topo */
-        .top-buttons {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 0 20px 10px 20px;
-        }
-        .top-buttons .stButton>button {
-            background-color: rgba(255, 255, 255, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            color: white;
-            font-size: 18px;
-        }
-
-        /* Área do Chat */
+        /* Container do Chat */
         .chat-container {
-            height: 65vh;
+            height: 60vh;
             overflow-y: auto;
-            padding: 10px;
             display: flex;
-            flex-direction: column-reverse; /* Mensagens mais novas embaixo */
-            background-color: rgba(0, 0, 0, 0.2);
+            flex-direction: column-reverse;
+            padding: 1rem;
             border-radius: 15px;
-            margin-bottom: 1rem;
+            background-color: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
         }
         .chat-bubble {
-            max-width: 70%;
-            padding: 10px 15px;
-            border-radius: 20px;
-            margin-bottom: 10px;
+            max-width: 75%;
+            padding: 0.8rem 1.2rem;
+            border-radius: 25px;
+            margin-bottom: 0.8rem;
             color: white;
+            line-height: 1.5;
         }
         .user-bubble {
             background-color: #0084ff;
@@ -163,165 +141,156 @@ st.markdown("""
             border-bottom-right-radius: 5px;
         }
         .model-bubble {
-            background-color: #333333;
+            background-color: #3e3e3e;
             align-self: flex-start;
             border-bottom-left-radius: 5px;
         }
         
         /* Modal (Janela Flutuante) */
-        .modal {
+        .modal-overlay {
             position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            z-index: 99;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-content {
+            background-color: #1e1e1e;
+            padding: 2rem;
+            border-radius: 15px;
+            border: 1px solid #ff4ec2;
             width: 90%;
             max-width: 500px;
-            background-color: rgba(30, 30, 30, 0.95);
-            border: 1px solid #ff4ec2;
-            border-radius: 15px;
-            padding: 25px;
-            z-index: 100;
-            box-shadow: 0 0 20px rgba(255, 78, 194, 0.5);
+            box-shadow: 0 0 30px rgba(255, 78, 194, 0.6);
+            position: relative;
         }
-        .modal-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            color: #ff4ec2;
-            margin-bottom: 15px;
-        }
-        .modal-header .stButton>button {
-            background: none;
-            border: none;
-            color: white;
-            font-size: 24px;
+        .close-button {
+            position: absolute;
+            top: 10px;
+            right: 15px;
         }
     </style>
 """, unsafe_allow_html=True)
 
-# Estrutura principal do app
-with st.container():
-    st.markdown('<div class="main-container">', unsafe_allow_html=True)
-    
+# --- Lógica de Renderização ---
+
+# Título e Botões Superiores
+c1, c2, c3 = st.columns([1, 4, 1])
+with c1:
+    if st.button("🛍️ Loja", use_container_width=True):
+        st.session_state.show_shop = True
+with c2:
     st.markdown('<p class="title">✦ YSIS ✦</p>', unsafe_allow_html=True)
-    
-    # Botões do Topo
-    c1, c2, c3 = st.columns([1, 1, 1])
-    with c1:
-        if st.button("🛍️ Loja", use_container_width=True):
-            st.session_state.show_shop = True
-            st.rerun()
-    with c2:
-        if st.button("📜 Histórico", use_container_width=True):
-            st.session_state.show_history = True
-            st.rerun()
-    with c3:
-        st.markdown(f"<div style='text-align: right; padding-top: 8px;'>💰 Moedas: {st.session_state.moedas}</div>", unsafe_allow_html=True)
+with c3:
+    if st.button("📜 Histórico", use_container_width=True):
+        st.session_state.show_history = True
 
-    # Imagem da Ysis
-    imagem_path = st.session_state.imagem_atual
-    if st.session_state.ysis_falando and os.path.exists("static/ysis_b.gif"):
-        imagem_path = "static/ysis_b.gif"
-    
-    if os.path.exists(imagem_path):
-        st.image(imagem_path, use_container_width=True)
+# Imagem da Ysis
+imagem_path = st.session_state.get("imagem_atual", "static/ysis.jpg")
+if st.session_state.get("ysis_falando") and os.path.exists("static/ysis_b.gif"):
+    imagem_path = "static/ysis_b.gif"
 
-    # Container do Chat
-    with st.container():
-        st.markdown('<div class="chat-container">', unsafe_allow_html=True)
-        # Invertendo a ordem de exibição para mostrar as mais recentes primeiro
-        for message in reversed(st.session_state.chat_history):
-            if message["role"] == "user":
-                st.markdown(f'<div class="chat-bubble user-bubble">{message["content"]}</div>', unsafe_allow_html=True)
-            else:
-                st.markdown(f'<div class="chat-bubble model-bubble">{message["content"]}</div>', unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
-    
-    # Formulário de Envio
-    with st.form(key="chat_form"):
-        user_input = st.text_input("Diga algo para a Ysis...", key="input_field", label_visibility="collapsed")
-        submitted = st.form_submit_button("Enviar")
+if os.path.exists(imagem_path):
+    st.image(imagem_path, use_container_width=True)
 
-        if submitted and user_input:
-            # Adiciona mensagem do usuário na tela imediatamente
-            st.session_state.chat_history.append({"role": "user", "content": user_input})
-            st.session_state.ysis_falando = True
-            st.rerun()
-
+# Container do Chat
+with st.container():
+    st.markdown('<div class="chat-container">', unsafe_allow_html=True)
+    for message in reversed(st.session_state.chat_history):
+        bubble_class = "user-bubble" if message["role"] == "user" else "model-bubble"
+        st.markdown(f'<div class="chat-bubble {bubble_class}">{message["content"]}</div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
+# Formulário de Envio
+with st.form(key="chat_form"):
+    user_input = st.text_input("Diga algo para a Ysis...", key="input_field", label_visibility="collapsed")
+    submitted = st.form_submit_button("Enviar")
 
-# Lógica de processamento (após o envio)
-if st.session_state.ysis_falando:
-    last_user_message = st.session_state.chat_history[-1]["content"]
-    with st.spinner("Ysis está respondendo com carinho..."):
-        resposta = conversar_com_ysis(last_user_message)
-        st.session_state.chat_history.append({"role": "model", "content": resposta})
-        audio_path = gerar_audio(resposta, "audio/resposta.mp3")
-        if audio_path:
-            st.audio(audio_path, autoplay=True)
-    
-    st.session_state.ysis_falando = False
-    st.rerun()
+    if submitted and user_input:
+        st.session_state.chat_history.append({"role": "user", "content": user_input})
+        st.session_state.ysis_falando = True
+        
+        with st.spinner("Ysis está respondendo com carinho..."):
+            resposta = conversar_com_ysis(user_input)
+            st.session_state.chat_history.append({"role": "model", "content": resposta})
+            audio_path = gerar_audio(resposta, "audio/resposta.mp3")
+            if audio_path:
+                st.session_state.audio_autoplay = audio_path
 
-# --- Modais Flutuantes ---
-if st.session_state.show_shop:
-    st.markdown('<div class="modal">', unsafe_allow_html=True)
-    
-    st.markdown('<div class="modal-header"><h3>🛍️ Loja Romântica</h3>', unsafe_allow_html=True)
-    if st.button("✖️", key="close_shop"):
-        st.session_state.show_shop = False
+        st.session_state.ysis_falando = False
         st.rerun()
+
+# --- Modais Flutuantes (Lógica de exibição) ---
+if st.session_state.show_shop:
+    st.markdown('<div class="modal-overlay">', unsafe_allow_html=True)
+    with st.container():
+        st.markdown('<div class="modal-content">', unsafe_allow_html=True)
+        
+        st.markdown('<div class="close-button">', unsafe_allow_html=True)
+        if st.button("✖️", key="close_shop"):
+            st.session_state.show_shop = False
+            st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+        st.header("🛍️ Loja Romântica")
+        st.markdown(f"**Suas Moedas: {st.session_state.moedas}** 💰")
+        st.markdown("---")
+        
+        itens_loja = carregar_arquivo_json("loja.json")
+        for item in itens_loja:
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                st.markdown(f"**{item['nome']}**")
+            with col2:
+                if st.button(f"{item['preco']} 💰", key=f"buy_{item['nome']}"):
+                    if st.session_state.moedas >= item["preco"]:
+                        st.session_state.moedas -= item["preco"]
+                        st.session_state.chat_history.append({"role": "model", "content": item['mensagem']})
+                        
+                        if item.get("acao") == "trocar_imagem":
+                            st.session_state.imagem_atual = item["imagem"]
+
+                        audio_path = gerar_audio(item["mensagem"], f"audio/compra_{item['nome']}.mp3")
+                        if audio_path:
+                             st.session_state.audio_autoplay = audio_path
+
+                        st.session_state.show_shop = False
+                        st.rerun()
+                    else:
+                        st.error("Moedas insuficientes...")
+        
+        st.markdown('</div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
-    st.markdown(f"**Suas Moedas: {st.session_state.moedas}** 💰")
-    st.markdown("---")
-    
-    itens_loja = carregar_loja()
-    for item in itens_loja:
-        col1, col2 = st.columns([3, 1])
-        with col1:
-            st.markdown(f"**{item['nome']}**")
-        with col2:
-            if st.button(f"{item['preco']} 💰", key=f"buy_{item['nome']}"):
-                if st.session_state.moedas >= item["preco"]:
-                    st.session_state.moedas -= item["preco"]
-                    st.success(f"Presente enviado!")
-                    
-                    st.session_state.chat_history.append({"role": "model", "content": item['mensagem']})
-                    
-                    if "imagem" in item and os.path.exists(item["imagem"]):
-                        st.session_state.imagem_atual = item["imagem"]
-                    
-                    audio_path = gerar_audio(item["mensagem"], f"audio/compra_{item['nome']}.mp3")
-                    if audio_path:
-                        st.audio(audio_path, autoplay=True)
-
-                    st.session_state.show_shop = False
-                    st.rerun()
-                else:
-                    st.error("Moedas insuficientes...")
-    
-    st.markdown('</div>', unsafe_allow_html=True)
-
-# Modal de Histórico
 if st.session_state.show_history:
-    st.markdown('<div class="modal">', unsafe_allow_html=True)
+    st.markdown('<div class="modal-overlay">', unsafe_allow_html=True)
+    st.markdown('<div class="modal-content" style="max-height: 80vh; overflow-y: auto;">', unsafe_allow_html=True)
     
-    st.markdown('<div class="modal-header"><h3>📜 Histórico de Conversas</h3>', unsafe_allow_html=True)
+    st.markdown('<div class="close-button">', unsafe_allow_html=True)
     if st.button("✖️", key="close_history"):
         st.session_state.show_history = False
         st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
-    
-    if os.path.exists("memoria_ysis.json"):
-        with open("memoria_ysis.json", "r", encoding="utf-8") as f:
-            conversas = json.load(f)
-        for c in reversed(conversas[-15:]):
+
+    st.header("📜 Histórico de Conversas")
+    conversas = carregar_arquivo_json("memoria_ysis.json")
+    if conversas:
+        for c in reversed(conversas):
             st.markdown(f"**Você:** {c['pergunta']}")
             st.markdown(f"**Ysis:** {c['resposta']}")
             st.markdown("---")
     else:
         st.info("Ainda não temos um histórico salvo.")
 
-    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown('</div></div>', unsafe_allow_html=True)
+
+
+# Lógica para tocar áudio após o rerun
+if st.session_state.audio_autoplay:
+    st.audio(st.session_state.audio_autoplay, autoplay=True)
+    st.session_state.audio_autoplay = None
