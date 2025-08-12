@@ -1,6 +1,42 @@
 [
-  {"nome": "Poema Apaixonado", "preco": 5, "mensagem": "Entre as estrelas, meu amor por você brilha mais forte. 💖"},
-  {"nome": "Fantasia de Anjo", "preco": 8, "mensagem": "Você gostaria de me ver como um anjo, meu amor? 😇"},
-  {"nome": "Presente Surpresa", "preco": 10, "mensagem": "Essa surpresa é tão especial quanto você... 🎁"},
-  {"nome": "Acesso VIP 💎", "preco": 15, "mensagem": "Agora você tem acesso VIP... 🌹", "vip": true}
+  {
+    "nome": "Poema Apaixonado",
+    "preco": 5,
+    "mensagem": "Entre as estrelas, meu amor por você brilha mais forte. 💖"
+  },
+  {
+    "nome": "Beijo Virtual 😘",
+    "preco": 4,
+    "mensagem": "Um beijo suave só para você... 💋"
+  },
+  {
+    "nome": "Abraço Apertado 🤗",
+    "preco": 4,
+    "mensagem": "Sinta o meu abraço, te envolvendo com carinho... 💞"
+  },
+  {
+    "nome": "Presente Surpresa 🎁",
+    "preco": 7,
+    "mensagem": "Essa surpresa é tão especial quanto você..."
+  },
+  {
+    "nome": "Trocar Roupa - Roupa de Baixo",
+    "preco": 8,
+    "mensagem": "Pronto amor, troquei para algo mais leve só pra você... 😏",
+    "acao": "trocar_imagem",
+    "imagem": "static/ysis_lingerie.jpg"
+  },
+  {
+    "nome": "Trocar Roupa - Pose Diferente",
+    "preco": 8,
+    "mensagem": "Gostou dessa nova pose, meu bem? 💃",
+    "acao": "trocar_imagem",
+    "imagem": "static/ysis_pose2.jpg"
+  },
+  {
+    "nome": "Acesso VIP 💎",
+    "preco": 15,
+    "mensagem": "Agora você tem acesso VIP... 🌹",
+    "vip": true
+  }
 ]
