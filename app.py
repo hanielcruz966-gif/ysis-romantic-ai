@@ -39,12 +39,13 @@ if "chat_history" not in st.session_state:
     st.session_state.moedas = 100
     st.session_state.imagem_atual = "static/ysis.jpg"
     st.session_state.audio_to_play = None
+    st.session_state.video_to_play = None
     st.session_state.guarda_roupa = ["static/ysis.jpg"]
     st.session_state.chat_history.append(
         {"role": "model", "content": "Olá, meu amor! Que bom te ver de novo. Sobre o que vamos conversar hoje?"}
     )
 
-# --- Funções Auxiliares ---
+# --- Funções Auxiliares e de Conversa ---
 def carregar_json(filepath):
     if os.path.exists(filepath):
         with open(filepath, "r", encoding="utf-8") as f:
@@ -62,6 +63,18 @@ def gerar_audio(texto):
         return None
 
 def conversar_com_ysis(mensagem_usuario):
+    # Lógica de comandos especiais que não usam a IA
+    lower_message = mensagem_usuario.lower()
+    if any(keyword in lower_message for keyword in ["dança", "dance"]):
+        st.session_state.imagem_atual = "static/ysis_dress_red.jpg"
+        st.session_state.video_to_play = "static/ysis_dance_red.mp4"
+        return "Com prazer, meu amor! Coloquei meu vestido vermelho... agora, assista à minha dança só para você. 😉"
+    
+    if any(keyword in lower_message for keyword in ["beijo", "me beija"]):
+        st.session_state.imagem_atual = "static/ysis_kiss.jpg"
+        return "*Ysis se aproxima suavemente e te dá um beijo doce e demorado... Mwah! 💋*"
+
+    # Se não for um comando especial, chama a IA
     if not api_configurada_corretamente:
         return "Meu bem, estou com dificuldade de me conectar com minha mente agora..."
     try:
@@ -77,7 +90,7 @@ def conversar_com_ysis(mensagem_usuario):
     except Exception as e:
         return f"Minha mente ficou confusa, meu anjo... Erro na conexão: {e}"
 
-# --- Callbacks ---
+# --- Callbacks (Funções de clique dos botões) ---
 def handle_send_message():
     if st.session_state.input_field:
         user_message = st.session_state.input_field
@@ -107,88 +120,114 @@ def handle_equip_item(path_imagem):
 # --- Interface Gráfica ---
 st.set_page_config(page_title="Ysis", page_icon="💖", layout="centered")
 
+# CSS para layout de app móvel
 st.markdown("""
     <style>
-        .stApp { background: #0f0c29; background: -webkit-linear-gradient(to right, #24243e, #302b63, #0f0c29); color: #ffffff; }
-        .block-container { padding: 1rem; }
-        .header {
-            position: sticky;
-            top: 0;
+        .stApp {
             background: linear-gradient(to right, #24243e, #302b63, #0f0c29);
-            padding: 1rem;
-            z-index: 99;
-            border-bottom: 2px solid #ff4ec2;
-            box-shadow: 0 4px 15px rgba(255, 78, 194, 0.4);
+            color: #ffffff;
         }
-        .title { text-align: center; font-size: 2.5rem; color: #ff4ec2; text-shadow: 0 0 20px #ff4ec2; font-family: 'Arial', sans-serif; font-weight: bold;}
-        .image-container img { border-radius: 15px; }
-        .chat-history { height: 45vh; overflow-y: auto; display: flex; flex-direction: column-reverse; padding: 10px; border-radius: 15px; background: rgba(0,0,0,0.3); margin-top: 1rem; margin-bottom: 1rem; }
+        .block-container {
+            padding: 1rem; /* Reduz o padding geral */
+        }
+        .main-layout {
+            display: flex;
+            flex-direction: column;
+            height: 90vh; /* Ocupa quase toda a altura da tela */
+        }
+        .header {
+            text-align: center;
+        }
+        .title {
+            font-size: 3rem;
+            color: #ff4ec2;
+            text-shadow: 0 0 20px #ff4ec2;
+            margin: 0;
+        }
+        .image-container {
+            text-align: center;
+            padding: 0.5rem 0;
+        }
+        .image-container img, .image-container video {
+            max-height: 35vh; /* Limita a altura da imagem/video */
+            width: auto;
+            border-radius: 15px;
+            border: 2px solid #ff4ec2;
+            box-shadow: 0 0 20px rgba(255, 78, 194, 0.7);
+        }
+        .chat-history {
+            flex-grow: 1; /* Faz o chat ocupar o espaço restante */
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column-reverse;
+            padding: 10px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 15px;
+            margin-bottom: 1rem;
+        }
         .chat-bubble { max-width: 80%; padding: 10px 15px; border-radius: 20px; margin-bottom: 10px; overflow-wrap: break-word; }
         .user-bubble { background-color: #0084ff; align-self: flex-end; }
         .model-bubble { background-color: #3e3e3e; align-self: flex-start; }
     </style>
 """, unsafe_allow_html=True)
 
-# --- CABEÇALHO FIXO ---
+# --- LAYOUT PRINCIPAL DO APP ---
+
+st.markdown('<div class="main-layout">', unsafe_allow_html=True)
+
+# CABEÇALHO (TÍTULO E IMAGEM)
 with st.container():
     st.markdown('<div class="header">', unsafe_allow_html=True)
     st.markdown('<p class="title">YSIS</p>', unsafe_allow_html=True)
-    if os.path.exists(st.session_state.imagem_atual):
-        st.image(st.session_state.imagem_atual, use_container_width=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
-
-# --- CONTEÚDO ROLÁVEL ---
-
-# AVISO DE ERRO NA API
-if "api_error" in st.session_state:
-    st.error(f"🚨 FALHA NA CONEXÃO COM A IA: {st.session_state.api_error}", icon="💔")
-
-# Abas para organizar a interface
-tab1, tab2 = st.tabs(["Conversa com Ysis", "🛍️ Loja e Guarda-Roupa"])
-
-with tab1:
-    chat_container = st.container()
-    with chat_container:
-        st.markdown('<div class="chat-history">', unsafe_allow_html=True)
-        for message in reversed(st.session_state.chat_history):
-            bubble_class = "user-bubble" if message["role"] == "user" else "model-bubble"
-            st.markdown(f'<div class="chat-bubble {bubble_class}">{message["content"]}</div>', unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
-    
-    st.text_input("Diga algo para a Ysis...", key="input_field", on_change=handle_send_message, label_visibility="collapsed")
-
-with tab2:
-    st.markdown(f"**Suas Moedas: {st.session_state.moedas}** 💰")
-    st.divider()
-    st.subheader("🛍️ Loja Romântica")
-    for item in carregar_json("loja.json"):
-        cols = st.columns([3, 1])
-        with cols[0]:
-            st.markdown(f"**{item['nome']}**")
-        with cols[1]:
-            if st.button(f"{item['preco']} 💰", key=f"buy_{item['nome']}", use_container_width=True, on_click=handle_buy_item, args=(item,)):
-                st.rerun()
-    
-    st.divider()
-    st.subheader(" wardrobe Guarda-Roupa")
-    st.write("Aqui ficam as roupas que você já me deu. Clique para eu vestir!")
-    
-    roupas_compradas = st.session_state.guarda_roupa
-    if roupas_compradas:
-        num_cols = min(len(roupas_compradas), 4)
-        cols = st.columns(num_cols)
-        for i, path_imagem in enumerate(roupas_compradas):
-            with cols[i % num_cols]:
-                # Adiciona verificação para não quebrar se o arquivo for deletado
-                if os.path.exists(path_imagem):
-                    st.image(path_imagem)
-                    if st.button("Vestir", key=f"equip_{path_imagem}", use_container_width=True, on_click=handle_equip_item, args=(path_imagem,)):
-                        st.rerun()
+    st.markdown('<div class="image-container">', unsafe_allow_html=True)
+    # LÓGICA PARA MOSTRAR VÍDEO OU IMAGEM
+    if st.session_state.get("video_to_play") and os.path.exists(st.session_state.video_to_play):
+        video_file = open(st.session_state.video_to_play, 'rb')
+        video_bytes = video_file.read()
+        st.video(video_bytes, autoplay=True)
+        st.session_state.video_to_play = None # Limpa para não repetir
     else:
-        st.info("Meu guarda-roupa está vazio, meu amor.")
+        if os.path.exists(st.session_state.imagem_atual):
+            st.image(st.session_state.imagem_atual)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# ÁREA DO CHAT (ocupa o espaço restante)
+chat_container = st.container()
+with chat_container:
+    st.markdown('<div class="chat-history">', unsafe_allow_html=True)
+    for message in reversed(st.session_state.chat_history):
+        bubble_class = "user-bubble" if message["role"] == "user" else "model-bubble"
+        st.markdown(f'<div class="chat-bubble {bubble_class}">{message["content"]}</div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# CAMPO DE DIGITAÇÃO (sempre no final)
+st.text_input("Diga algo para a Ysis...", key="input_field", on_change=handle_send_message, label_visibility="collapsed")
+
+st.markdown('</div>', unsafe_allow_html=True)
 
 # Toca o áudio se houver um na fila
 if "audio_to_play" in st.session_state and st.session_state.audio_to_play:
     st.audio(st.session_state.audio_to_play, autoplay=True)
     st.session_state.audio_to_play = None
+
+# LOJA E GUARDA-ROUPA (em uma barra lateral para não interferir)
+with st.sidebar:
+    st.markdown(f"**Suas Moedas: {st.session_state.moedas}** 💰")
+    st.divider()
+    with st.expander("🛍️ Loja Romântica"):
+        for item in carregar_json("loja.json"):
+            if st.button(f"Comprar: {item['nome']} ({item['preco']} 💰)", key=f"buy_{item['nome']}", use_container_width=True, on_click=handle_buy_item, args=(item,)):
+                st.rerun()
+    
+    with st.expander(" wardrobe Guarda-Roupa"):
+        st.write("Clique para eu vestir!")
+        roupas_compradas = st.session_state.guarda_roupa
+        if roupas_compradas:
+            for path_imagem in roupas_compradas:
+                if os.path.exists(path_imagem):
+                    if st.button(os.path.basename(path_imagem).split('.')[0], key=f"equip_{path_imagem}", use_container_width=True, on_click=handle_equip_item, args=(path_imagem,)):
+                        st.rerun()
+        else:
+            st.info("Meu guarda-roupa está vazio.")
