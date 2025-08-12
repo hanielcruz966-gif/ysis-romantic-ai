@@ -42,6 +42,7 @@ if "chat_history" not in st.session_state:
     st.session_state.audio_to_play = None
     st.session_state.video_to_play = None
     st.session_state.guarda_roupa = ["static/ysis.jpg"]
+    st.session_state.show_shop = False
     st.session_state.chat_history.append(
         {"role": "model", "content": "Olá, meu amor! Que bom te ver de novo. Sobre o que vamos conversar hoje?"}
     )
@@ -123,28 +124,29 @@ st.markdown("""
     <style>
         .stApp { background: linear-gradient(to right, #24243e, #302b63, #0f0c29); color: #ffffff; }
         .block-container { padding: 1rem; }
+        
         .title { 
             text-align: center;
-            font-size: 4.5rem; /* Título maior */
+            font-size: 4rem; 
             color: #ff4ec2; 
-            text-shadow: 0 0 10px #ff4ec2, 0 0 25px #ff4ec2, 0 0 45px #ff0055; /* Efeito Neon Restaurado */
+            text-shadow: 0 0 10px #ff4ec2, 0 0 25px #ff4ec2, 0 0 45px #ff0055;
             margin-bottom: 1rem; 
             font-family: 'Arial', sans-serif; 
             font-weight: bold;
         }
         
-        /* O "PALCO" VIRTUAL PARA A YSIS */
+        /* O "PALCO" VIRTUAL PERFEITO PARA A YSIS */
         .media-container {
             width: 100%;
-            max-width: 400px; /* Limita a largura máxima em telas grandes */
+            max-width: 400px;
             margin: auto;
-            padding-top: 133.33%; /* Proporção de 3:4 (retrato) */
+            aspect-ratio: 3 / 4;  /* Proporção de Retrato Fixa */
             position: relative;
-            background-color: #000;
             border-radius: 15px;
-            border: 3px solid #ff4ec2; /* Borda Neon */
-            box-shadow: 0 0 25px rgba(255, 78, 194, 0.8); /* Sombra Neon */
+            background-color: #000;
             overflow: hidden;
+            border: 3px solid #ff4ec2;
+            box-shadow: 0 0 25px rgba(255, 78, 194, 0.8);
         }
         .media-container img, .media-container video {
             position: absolute;
@@ -152,7 +154,7 @@ st.markdown("""
             left: 0;
             width: 100%;
             height: 100%;
-            object-fit: cover; /* Garante o preenchimento perfeito, sem barras pretas */
+            object-fit: cover; /* Preenche o quadro perfeitamente */
             border-radius: 12px;
         }
         
@@ -164,23 +166,64 @@ st.markdown("""
             padding: 10px; 
             border-radius: 15px; 
             background: rgba(0,0,0,0.3); 
-            margin-top: 1.5rem; /* Espaçamento entre a imagem e o chat */
+            margin-top: 1.5rem; 
             margin-bottom: 1rem; 
         }
         .chat-bubble { max-width: 80%; padding: 10px 15px; border-radius: 20px; margin-bottom: 10px; overflow-wrap: break-word; }
         .user-bubble { background-color: #0084ff; align-self: flex-end; }
         .model-bubble { background-color: #3e3e3e; align-self: flex-start; }
+        
+        /* PAINEL DA LOJA TRANSPARENTE */
+        .shop-panel {
+            background-color: rgba(20, 20, 40, 0.85);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 78, 194, 0.5);
+            border-radius: 15px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
     </style>
 """, unsafe_allow_html=True)
 
-# --- LAYOUT PRINCIPAL DO APP (ESTRUTURA SIMPLES E VERTICAL) ---
+# --- LAYOUT PRINCIPAL DO APP ---
 
 # AVISO DE ERRO NA API
 if "api_error" in st.session_state:
     st.error(f"🚨 FALHA NA CONEXÃO COM A IA: {st.session_state.api_error}", icon="💔")
 
-# Título
-st.markdown('<p class="title">YSIS</p>', unsafe_allow_html=True)
+# Cabeçalho com Ícones e Título
+col1, col2, col3 = st.columns([1, 4, 1])
+with col1:
+    if st.button("🛍️", help="Loja / Guarda-Roupa"):
+        st.session_state.show_shop = not st.session_state.get("show_shop", False)
+with col2:
+    st.markdown('<p class="title">YSIS</p>', unsafe_allow_html=True)
+with col3:
+    st.markdown(f"<div style='text-align: right; padding-top: 25px;'>💰{st.session_state.moedas}</div>", unsafe_allow_html=True)
+
+# Painel da Loja (aparece como uma barra transparente quando ativado)
+if st.session_state.get("show_shop", False):
+    with st.container():
+        st.markdown('<div class="shop-panel">', unsafe_allow_html=True)
+        st.subheader("Loja Romântica")
+        for item in carregar_json("loja.json"):
+            cols_loja = st.columns([3, 1])
+            cols_loja[0].markdown(f"**{item['nome']}**")
+            if cols_loja[1].button(f"{item['preco']} 💰", key=f"buy_{item['nome']}", on_click=handle_buy_item, args=(item,)):
+                st.rerun()
+        st.divider()
+        st.subheader(" wardrobe Guarda-Roupa")
+        roupas = st.session_state.guarda_roupa
+        if roupas:
+            num_cols = min(len(roupas), 4)
+            cols_guarda_roupa = st.columns(num_cols)
+            for i, path in enumerate(roupas):
+                if os.path.exists(path):
+                    cols_guarda_roupa[i % num_cols].image(path)
+                    if cols_guarda_roupa[i % num_cols].button("Vestir", key=f"equip_{path}", on_click=handle_equip_item, args=(path,)):
+                        st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
+
 
 # "Palco" da Ysis (Vídeo ou Imagem)
 st.markdown('<div class="media-container">', unsafe_allow_html=True)
@@ -199,29 +242,6 @@ else:
             img_html = f'<img src="data:image/jpeg;base64,{b64_img}">'
             st.markdown(img_html, unsafe_allow_html=True)
 st.markdown('</div>', unsafe_allow_html=True)
-
-# Loja e Guarda-Roupa dentro de um Expander (solução estável)
-with st.expander("🛍️ Abrir Loja e Guarda-Roupa"):
-    st.markdown(f"**Suas Moedas: {st.session_state.moedas}** 💰")
-    st.divider()
-    st.subheader("Loja Romântica")
-    for item in carregar_json("loja.json"):
-        cols_loja = st.columns([3, 1])
-        cols_loja[0].markdown(f"**{item['nome']}**")
-        if cols_loja[1].button(f"{item['preco']} 💰", key=f"buy_{item['nome']}", on_click=handle_buy_item, args=(item,)):
-            st.rerun()
-    st.divider()
-    st.subheader(" wardrobe Guarda-Roupa")
-    st.write("Clique para eu vestir!")
-    roupas = st.session_state.guarda_roupa
-    if roupas:
-        num_cols = min(len(roupas), 4)
-        cols_guarda_roupa = st.columns(num_cols)
-        for i, path in enumerate(roupas):
-            if os.path.exists(path):
-                cols_guarda_roupa[i % num_cols].image(path)
-                if cols_guarda_roupa[i % num_cols].button("Vestir", key=f"equip_{path}", on_click=handle_equip_item, args=(path,)):
-                    st.rerun()
 
 # Histórico do Chat
 chat_container = st.container()
