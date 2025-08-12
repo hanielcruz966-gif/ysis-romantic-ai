@@ -122,42 +122,44 @@ st.set_page_config(page_title="Ysis", page_icon="💖", layout="centered")
 
 st.markdown("""
     <style>
-        .stApp { background: linear-gradient(to right, #24243e, #302b63, #0f0c29); color: #ffffff; }
-        .block-container { padding: 1rem; }
-        .main-layout { display: flex; flex-direction: column; height: 90vh; }
-        
-        .header { text-align: center; }
+        .stApp {
+            background: linear-gradient(to right, #24243e, #302b63, #0f0c29);
+            color: #ffffff;
+        }
+        .block-container {
+            padding: 1rem; /* Espaçamento geral */
+        }
         .title { 
+            text-align: center;
             font-size: 4rem; 
             color: #ff4ec2; 
             text-shadow: 0 0 10px #ff4ec2, 0 0 25px #ff4ec2, 0 0 45px #ff0055;
-            margin: 0; 
+            margin-bottom: 1rem; 
             font-family: 'Arial', sans-serif; 
             font-weight: bold;
         }
-        
-        /* O "PALCO" VIRTUAL PARA A YSIS */
         .media-container {
-            width: 100%;
-            padding-top: 150%; /* Proporção de 2:3 (como celular em pé). Ajuste se necessário. */
-            position: relative;
-            border-radius: 15px;
-            border: 3px solid #ff4ec2;
-            box-shadow: 0 0 25px rgba(255, 78, 194, 0.8);
-            background-color: #000;
-            margin: 1rem 0;
+            text-align: center;
+            margin-bottom: 1rem;
         }
         .media-container img, .media-container video {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            object-fit: cover; /* ESSA É A MÁGICA: Preenche o espaço, corta o excesso, sem barras pretas */
-            border-radius: 12px;
+            max-width: 100%;
+            max-height: 40vh;
+            border-radius: 15px; 
+            border: 3px solid #ff4ec2;
+            box-shadow: 0 0 25px rgba(255, 78, 194, 0.8);
+            object-fit: cover;
         }
-        
-        .chat-history { flex-grow: 1; overflow-y: auto; display: flex; flex-direction: column-reverse; padding: 10px; border-radius: 15px; background: rgba(0,0,0,0.2); margin-bottom: 1rem; }
+        .chat-history { 
+            height: 40vh; /* Altura fixa para o chat */
+            overflow-y: auto; 
+            display: flex; 
+            flex-direction: column-reverse; 
+            padding: 10px; 
+            border-radius: 15px; 
+            background: rgba(0,0,0,0.3); 
+            margin-bottom: 1rem; 
+        }
         .chat-bubble { max-width: 80%; padding: 10px 15px; border-radius: 20px; margin-bottom: 10px; overflow-wrap: break-word; }
         .user-bubble { background-color: #0084ff; align-self: flex-end; }
         .model-bubble { background-color: #3e3e3e; align-self: flex-start; }
@@ -165,67 +167,70 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- LAYOUT PRINCIPAL DO APP ---
-st.markdown('<div class="main-layout">', unsafe_allow_html=True)
 
-with st.container():
-    col1, col2, col3 = st.columns([1, 4, 1])
-    with col1:
-        if st.button("🛍️", help="Loja / Guarda-Roupa"):
-            st.session_state.show_shop = not st.session_state.get("show_shop", False)
-    with col2:
-        st.markdown('<p class="title">YSIS</p>', unsafe_allow_html=True)
-    with col3:
-        st.markdown(f"<div style='text-align: right; padding-top: 25px;'>💰{st.session_state.moedas}</div>", unsafe_allow_html=True)
-    
-    # O "PALCO" onde a Ysis aparece
-    st.markdown('<div class="media-container">', unsafe_allow_html=True)
-    if st.session_state.get("video_to_play") and os.path.exists(st.session_state.video_to_play):
-        video_path = st.session_state.video_to_play
-        with open(video_path, "rb") as video_file:
-            video_bytes = video_file.read()
-            base64_video = base64.b64encode(video_bytes).decode('utf-8')
-            video_html = f'<video autoplay muted playsinline><source src="data:video/mp4;base64,{base64_video}" type="video/mp4"></video>'
-            st.markdown(video_html, unsafe_allow_html=True)
-        st.session_state.video_to_play = None
-    else:
-        if os.path.exists(st.session_state.imagem_atual):
-            with open(st.session_state.imagem_atual, "rb") as img_file:
-                b64_img = base64.b64encode(img_file.read()).decode()
-                img_html = f'<img src="data:image/jpeg;base64,{b64_img}">'
-                st.markdown(img_html, unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
+# AVISO DE ERRO NA API
+if "api_error" in st.session_state:
+    st.error(f"🚨 FALHA NA CONEXÃO COM A IA: {st.session_state.api_error}", icon="💔")
 
-    # Modal da Loja e Guarda-Roupa
-    if st.session_state.get("show_shop", False):
-        with st.expander("🛍️ Loja e Guarda-Roupa", expanded=True):
-            st.subheader("Loja Romântica")
-            # ... (código da loja aqui)
-            st.divider()
-            st.subheader(" wardrobe Guarda-Roupa (Provador)")
-            roupas = st.session_state.guarda_roupa
-            if roupas:
-                # Usando ícones/miniaturas no provador
-                num_cols = min(len(roupas), 5)
-                cols_guarda_roupa = st.columns(num_cols)
-                for i, path in enumerate(roupas):
-                    if os.path.exists(path):
-                        if cols_guarda_roupa[i % num_cols].button("✔", key=f"equip_{path}", help=f"Vestir {os.path.basename(path)}", on_click=handle_equip_item, args=(path,)):
-                            st.rerun()
-                        cols_guarda_roupa[i % num_cols].image(path, width=80)
+# Cabeçalho com Ícones e Título
+col1, col2, col3 = st.columns([1, 4, 1])
+with col1:
+    if st.button("🛍️", help="Loja / Guarda-Roupa"):
+        st.session_state.show_shop = not st.session_state.get("show_shop", False)
+with col2:
+    st.markdown('<p class="title">YSIS</p>', unsafe_allow_html=True)
+with col3:
+    st.markdown(f"<div style='text-align: right; padding-top: 25px;'>💰{st.session_state.moedas}</div>", unsafe_allow_html=True)
 
-    chat_container = st.container()
-    with chat_container:
-        st.markdown('<div class="chat-history">', unsafe_allow_html=True)
-        for message in reversed(st.session_state.chat_history):
-            bubble_class = "user-bubble" if message["role"] == "user" else "model-bubble"
-            st.markdown(f'<div class="chat-bubble {bubble_class}">{message["content"]}</div>', unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
+# Janela Pop-up para Loja e Guarda-Roupa (usando st.dialog)
+if st.session_state.get("show_shop", False):
+    with st.dialog("Loja e Guarda-Roupa"):
+        st.subheader("🛍️ Loja Romântica")
+        for item in carregar_json("loja.json"):
+            cols_loja = st.columns([3, 1])
+            cols_loja[0].markdown(f"**{item['nome']}**")
+            if cols_loja[1].button(f"{item['preco']} 💰", key=f"buy_{item['nome']}", on_click=handle_buy_item, args=(item,)):
+                st.rerun()
+        st.divider()
+        st.subheader(" wardrobe Guarda-Roupa")
+        roupas = st.session_state.guarda_roupa
+        if roupas:
+            num_cols = min(len(roupas), 4)
+            cols_guarda_roupa = st.columns(num_cols)
+            for i, path in enumerate(roupas):
+                if os.path.exists(path):
+                    cols_guarda_roupa[i % num_cols].image(path)
+                    if cols_guarda_roupa[i % num_cols].button("Vestir", key=f"equip_{path}", on_click=handle_equip_item, args=(path,)):
+                        st.rerun()
 
-    st.text_input("Diga algo para a Ysis...", key="input_field", on_change=handle_send_message, label_visibility="collapsed")
-
+# "Palco" da Ysis (Vídeo ou Imagem)
+st.markdown('<div class="media-container">', unsafe_allow_html=True)
+if st.session_state.get("video_to_play") and os.path.exists(st.session_state.video_to_play):
+    video_path = st.session_state.video_to_play
+    with open(video_path, "rb") as video_file:
+        video_bytes = video_file.read()
+        base64_video = base64.b64encode(video_bytes).decode('utf-8')
+        video_html = f'<video autoplay muted playsinline><source src="data:video/mp4;base64,{base64_video}" type="video/mp4"></video>'
+        st.markdown(video_html, unsafe_allow_html=True)
+    st.session_state.video_to_play = None
+else:
+    if os.path.exists(st.session_state.imagem_atual):
+        st.image(st.session_state.imagem_atual)
 st.markdown('</div>', unsafe_allow_html=True)
 
-# Áudio
+# Histórico do Chat
+chat_container = st.container()
+with chat_container:
+    st.markdown('<div class="chat-history">', unsafe_allow_html=True)
+    for message in reversed(st.session_state.chat_history):
+        bubble_class = "user-bubble" if message["role"] == "user" else "model-bubble"
+        st.markdown(f'<div class="chat-bubble {bubble_class}">{message["content"]}</div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# Campo de Digitação
+st.text_input("Diga algo para a Ysis...", key="input_field", on_change=handle_send_message, label_visibility="collapsed")
+
+# Lógica para tocar Áudio
 if "audio_to_play" in st.session_state and st.session_state.audio_to_play:
     st.audio(st.session_state.audio_to_play, autoplay=True)
     st.session_state.audio_to_play = None
