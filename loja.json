@@ -1,23 +1,6 @@
 [
-  {
-    "nome": "Poema Apaixonado",
-    "preco": 5,
-    "mensagem": "Entre as estrelas, meu amor por você brilha mais forte. 💖"
-  },
-  {
-    "nome": "Fantasia de Anjo",
-    "preco": 8,
-    "mensagem": "Você gostaria de me ver como um anjo, meu amor? 😇"
-  },
-  {
-    "nome": "Presente Surpresa",
-    "preco": 10,
-    "mensagem": "Essa surpresa é tão especial quanto você... 🎁"
-  },
-  {
-    "nome": "Acesso VIP 💎",
-    "preco": 15,
-    "mensagem": "Agora você tem acesso VIP a fantasias e textos especiais.",
-    "vip": true
-  }
+  {"nome": "Poema Apaixonado", "preco": 5, "mensagem": "Entre as estrelas, meu amor por você brilha mais forte. 💖"},
+  {"nome": "Fantasia de Anjo", "preco": 8, "mensagem": "Você gostaria de me ver como um anjo, meu amor? 😇"},
+  {"nome": "Presente Surpresa", "preco": 10, "mensagem": "Essa surpresa é tão especial quanto você... 🎁"},
+  {"nome": "Acesso VIP 💎", "preco": 15, "mensagem": "Agora você tem acesso VIP... 🌹", "vip": true}
 ]
