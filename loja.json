@@ -16,7 +16,7 @@
   {
     "nome": "Vestido Vermelho",
     "preco": 20,
-    "mensagem": "Coloquei meu vestido vermelho mais provocante...",
+    "mensagem": "Coloquei meu vestido vermelho... agora estou pronta para dançar.",
     "acao": "trocar_imagem",
     "imagem": "static/ysis_dress_red.jpg"
   },
