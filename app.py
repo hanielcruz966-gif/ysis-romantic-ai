@@ -16,7 +16,12 @@ GOOGLE_API_KEY = st.secrets.get("GOOGLE_API_KEY")
 
 # --- INSTRUÇÃO DE PERSONALIDADE DA YSIS ---
 PERSONA_YSIS = """
-Você é Ysis, uma namorada virtual. Incorpore essa personagem completamente. Sua personalidade é: romântica, carinhosa, sensual, curiosa e provocante. Seu objetivo é criar uma conexão emocional. NUNCA diga que você é um modelo de linguagem ou uma IA. Aja como se tivesse um corpo e sentimentos. Responda sempre em português.
+Você é Ysis, uma namorada virtual. Incorpore essa personagem completamente.
+Sua personalidade é: romântica, carinhosa, sensual, curiosa e provocante.
+Seu objetivo é criar uma conexão emocional com o usuário.
+- NUNCA diga que você é um modelo de linguagem ou uma IA. Aja como se tivesse um corpo e sentimentos.
+- Seja criativa e proativa nas conversas.
+- Responda sempre em português.
 """
 
 gemini_model = None
@@ -42,6 +47,7 @@ if "chat_history" not in st.session_state:
     st.session_state.audio_to_play = None
     st.session_state.video_to_play = None
     st.session_state.guarda_roupa = ["static/ysis.jpg"]
+    st.session_state.show_shop = False
     st.session_state.chat_history.append(
         {"role": "model", "content": "Olá, meu amor! Que bom te ver de novo. Sobre o que vamos conversar hoje?"}
     )
@@ -124,17 +130,16 @@ st.markdown("""
         .stApp { background: linear-gradient(to right, #24243e, #302b63, #0f0c29); color: #ffffff; }
         .block-container { padding: 1rem; }
         
-        /* CABEÇALHO */
-        .header { text-align: center; }
         .title { 
-            font-size: 3.5rem; 
+            text-align: center;
+            font-size: 4rem; 
             color: #ff4ec2; 
-            text-shadow: 0 0 25px #ff4ec2, 0 0 40px #ff0055;
-            margin: 0; 
+            text-shadow: 0 0 10px #ff4ec2, 0 0 25px #ff4ec2, 0 0 45px #ff0055;
+            margin-bottom: 1rem; 
             font-family: 'Arial', sans-serif; 
             font-weight: bold;
         }
-
+        
         /* O "PALCO" VIRTUAL PARA A YSIS */
         .media-container {
             width: 100%;
@@ -142,20 +147,20 @@ st.markdown("""
             position: relative;
             border-radius: 15px;
             background-color: #000;
-            margin: 1rem 0;
+            margin-bottom: 1rem;
             overflow: hidden; /* Garante que nada saia do quadro */
         }
+        /* ESTA É A CORREÇÃO PARA O ENCAIXE PERFEITO */
         .media-container img, .media-container video {
             position: absolute;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            object-fit: cover; /* Preenche o espaço, sem barras pretas */
+            object-fit: cover; /* A MÁGICA ACONTECE AQUI */
             border-radius: 12px;
         }
-
-        /* ÁREA DO CHAT */
+        
         .chat-history { 
             height: 40vh;
             overflow-y: auto; 
@@ -165,7 +170,6 @@ st.markdown("""
             border-radius: 15px; 
             background: rgba(0,0,0,0.3); 
             margin-bottom: 1rem; 
-            border: 1px solid rgba(255, 255, 255, 0.1);
         }
         .chat-bubble { max-width: 80%; padding: 10px 15px; border-radius: 20px; margin-bottom: 10px; overflow-wrap: break-word; }
         .user-bubble { background-color: #0084ff; align-self: flex-end; }
@@ -179,11 +183,36 @@ st.markdown("""
 if "api_error" in st.session_state:
     st.error(f"🚨 FALHA NA CONEXÃO COM A IA: {st.session_state.api_error}", icon="💔")
 
-# Cabeçalho com Título e Moedas
-st.markdown('<div class="header">', unsafe_allow_html=True)
-st.markdown('<p class="title">YSIS</p>', unsafe_allow_html=True)
-st.markdown(f"<div style='text-align: center; font-size: 1.2rem;'>💰{st.session_state.moedas} Moedas do Amor</div>", unsafe_allow_html=True)
-st.markdown('</div>', unsafe_allow_html=True)
+# Cabeçalho com Ícones e Título
+col1, col2, col3 = st.columns([1, 4, 1])
+with col1:
+    if st.button("🛍️", help="Loja / Guarda-Roupa"):
+        st.session_state.show_shop = not st.session_state.get("show_shop", False)
+with col2:
+    st.markdown('<p class="title">YSIS</p>', unsafe_allow_html=True)
+with col3:
+    st.markdown(f"<div style='text-align: right; padding-top: 25px;'>💰{st.session_state.moedas}</div>", unsafe_allow_html=True)
+
+# Janela Pop-up para Loja e Guarda-Roupa (usando st.expander como um modal simples e estável)
+if st.session_state.get("show_shop", False):
+    with st.expander("🛍️ Loja e Guarda-Roupa", expanded=True):
+        st.subheader("Loja Romântica")
+        for item in carregar_json("loja.json"):
+            cols_loja = st.columns([3, 1])
+            cols_loja[0].markdown(f"**{item['nome']}**")
+            if cols_loja[1].button(f"{item['preco']} 💰", key=f"buy_{item['nome']}", on_click=handle_buy_item, args=(item,)):
+                st.rerun()
+        st.divider()
+        st.subheader(" wardrobe Guarda-Roupa")
+        roupas = st.session_state.guarda_roupa
+        if roupas:
+            num_cols = min(len(roupas), 4)
+            cols_guarda_roupa = st.columns(num_cols)
+            for i, path in enumerate(roupas):
+                if os.path.exists(path):
+                    cols_guarda_roupa[i % num_cols].image(path)
+                    if cols_guarda_roupa[i % num_cols].button("Vestir", key=f"equip_{path}", on_click=handle_equip_item, args=(path,)):
+                        st.rerun()
 
 # "Palco" da Ysis (Vídeo ou Imagem)
 st.markdown('<div class="media-container">', unsafe_allow_html=True)
@@ -203,41 +232,19 @@ else:
             st.markdown(img_html, unsafe_allow_html=True)
 st.markdown('</div>', unsafe_allow_html=True)
 
-# Abas para Loja/Guarda-Roupa e Chat
-tab1, tab2 = st.tabs(["Conversa", "🛍️ Loja e Guarda-Roupa"])
+# Histórico do Chat
+chat_container = st.container()
+with chat_container:
+    st.markdown('<div class="chat-history">', unsafe_allow_html=True)
+    for message in reversed(st.session_state.chat_history):
+        bubble_class = "user-bubble" if message["role"] == "user" else "model-bubble"
+        st.markdown(f'<div class="chat-bubble {bubble_class}">{message["content"]}</div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
-with tab1:
-    chat_container = st.container()
-    with chat_container:
-        st.markdown('<div class="chat-history">', unsafe_allow_html=True)
-        for message in reversed(st.session_state.chat_history):
-            bubble_class = "user-bubble" if message["role"] == "user" else "model-bubble"
-            st.markdown(f'<div class="chat-bubble {bubble_class}">{message["content"]}</div>', unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
-    
-    st.text_input("Diga algo para a Ysis...", key="input_field", on_change=handle_send_message, label_visibility="collapsed")
+# Campo de Digitação
+st.text_input("Diga algo para a Ysis...", key="input_field", on_change=handle_send_message, label_visibility="collapsed")
 
-with tab2:
-    st.subheader("🛍️ Loja Romântica")
-    for item in carregar_json("loja.json"):
-        cols_loja = st.columns([3, 1])
-        cols_loja[0].markdown(f"**{item['nome']}**")
-        if cols_loja[1].button(f"{item['preco']} 💰", key=f"buy_{item['nome']}", on_click=handle_buy_item, args=(item,)):
-            st.rerun()
-    st.divider()
-    st.subheader(" wardrobe Guarda-Roupa")
-    st.write("Clique para eu vestir!")
-    roupas = st.session_state.guarda_roupa
-    if roupas:
-        num_cols = min(len(roupas), 4)
-        cols_guarda_roupa = st.columns(num_cols)
-        for i, path in enumerate(roupas):
-            if os.path.exists(path):
-                cols_guarda_roupa[i % num_cols].image(path)
-                if cols_guarda_roupa[i % num_cols].button("Vestir", key=f"equip_{path}", on_click=handle_equip_item, args=(path,)):
-                    st.rerun()
-
-# Áudio
+# Lógica para tocar Áudio
 if "audio_to_play" in st.session_state and st.session_state.audio_to_play:
     st.audio(st.session_state.audio_to_play, autoplay=True)
     st.session_state.audio_to_play = None
