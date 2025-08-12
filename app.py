@@ -1,252 +1,405 @@
+# app.py
 import streamlit as st
 import os
+import random
+from gtts import gTTS
+from dotenv import load_dotenv
+import google.generativeai as genai
+from PIL import Image
+import datetime
 import json
-import base64
+import time
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
 
-# --- Importação Segura e Configuração de API ---
-try:
-    import google.generativeai as genai
-    from gtts import gTTS
-except ImportError as e:
-    st.error(f"Erro de importação: a biblioteca '{e.name}' não foi encontrada. Verifique seu `requirements.txt`.")
-    st.stop()
+# -------------------------
+# Config e inicialização
+# -------------------------
+load_dotenv()  # carrega .env
+GENAI_API_KEY = os.getenv("GOOGLE_API_KEY")
 
-# Lê a chave de API de forma segura dos "Secrets" do Streamlit
-GOOGLE_API_KEY = st.secrets.get("GOOGLE_API_KEY")
-
-# --- INSTRUÇÃO DE PERSONALIDADE DA YSIS ---
-PERSONA_YSIS = """
-Você é Ysis, uma namorada virtual. Incorpore essa personagem completamente.
-Sua personalidade é: romântica, carinhosa, sensual, curiosa e provocante.
-Seu objetivo é criar uma conexão emocional com o usuário.
-- NUNCA diga que você é um modelo de linguagem ou uma IA. Aja como se tivesse um corpo e sentimentos.
-- Seja criativa e proativa nas conversas.
-- Responda sempre em português.
-"""
-
-gemini_model = None
-api_configurada_corretamente = False
-if GOOGLE_API_KEY:
-    try:
-        genai.configure(api_key=GOOGLE_API_KEY)
-        gemini_model = genai.GenerativeModel("models/gemini-1.5-flash")
-        api_configurada_corretamente = True
-    except Exception as e:
-        st.session_state.api_error = f"A chave de API do Google é inválida ou o projeto não está configurado. Erro: {e}"
+# avisa se não tiver chave
+if not GENAI_API_KEY:
+    st.warning("Chave da API do Google (GOOGLE_API_KEY) não encontrada no .env. Coloque a chave e reinicie a app.")
 else:
-    st.session_state.api_error = "A chave GOOGLE_API_KEY não foi encontrada nos 'Secrets'."
+    try:
+        genai.configure(api_key=GENAI_API_KEY)
+    except Exception as e:
+        st.error(f"Erro ao configurar API Gemini: {e}")
 
+# diretórios úteis
 os.makedirs("audio", exist_ok=True)
 os.makedirs("static", exist_ok=True)
 
-# --- Estado da Sessão ---
-if "chat_history" not in st.session_state:
-    st.session_state.chat_history = []
-    st.session_state.moedas = 100
-    st.session_state.imagem_atual = "static/ysis.jpg"
-    st.session_state.audio_to_play = None
-    st.session_state.video_to_play = None
-    st.session_state.guarda_roupa = ["static/ysis.jpg"]
-    st.session_state.chat_history.append(
-        {"role": "model", "content": "Olá, meu amor! Que bom te ver de novo. Sobre o que vamos conversar hoje?"}
-    )
+# configuração padrão (pode ser sobrescrita por settings.json)
+config_padrao = {
+    "modelo": "models/gemini-1.5-pro",   # sugestão: gemini-1.5-pro para conversas longas e naturais
+    "memoria_path": "memoria_ysis.json",
+    "modo_adulto_ativo": False,
+    "tema": "romantico",
+    "audio_suave": True,
+    "surpresas_romanticas": True,
+    "jogos_ativos": True,
+    "log_conversas": True,
+    "timeout_segundos": 15,
+    "max_history_messages": 30
+}
 
-# --- Funções Auxiliares e de Conversa ---
-def carregar_json(filepath):
-    if os.path.exists(filepath):
-        with open(filepath, "r", encoding="utf-8") as f:
-            return json.load(f)
-    return []
-
-def gerar_audio(texto):
+# Se houver settings.json, leia com segurança (aceita só dict)
+if os.path.exists("settings.json"):
     try:
-        tts = gTTS(text=texto, lang='pt-br', slow=True)
-        audio_path = "audio/resposta.mp3"
-        tts.save(audio_path)
-        with open(audio_path, "rb") as audio_file:
-            return audio_file.read()
-    except Exception:
+        with open("settings.json", "r", encoding="utf-8") as f:
+            data = json.load(f)
+            if isinstance(data, dict):
+                config_padrao.update(data)
+            else:
+                # se settings.json for um array (ex: loja), ignore para config
+                st.info("settings.json não é um objeto de configuração — ignorando para configurações.")
+    except Exception as e:
+        st.warning(f"Erro lendo settings.json: {e}")
+
+# instancia modelo (cairá em erro se chave inválida)
+model = None
+try:
+    model = genai.GenerativeModel(config_padrao["modelo"])
+except Exception:
+    # deixamos None e tratamos depois
+    model = None
+
+# -------------------------
+# Estado inicial de sessão
+# -------------------------
+if "historico" not in st.session_state:
+    st.session_state.historico = []
+    st.session_state.conversas_salvas = []
+    st.session_state.modo_adulto = config_padrao["modo_adulto_ativo"]
+    st.session_state.moedas = 10
+    st.session_state.vip = False
+    st.session_state.ysis_falando = False
+    st.session_state.show_shop = False
+    st.session_state.show_history = False
+    st.session_state.last_interaction = time.time()
+    st.session_state.persona_initialized = False
+
+# inicializa persona (uma vez)
+if not st.session_state.persona_initialized:
+    persona_prompt = (
+        "Você é Ysis, uma namorada virtual romântica, carinhosa, curiosa e levemente provocante. "
+        "Seja sempre respeitosa e não produza conteúdo sexual explícito neste modo. "
+        "Inclua emojis moderadamente, demonstre interesse pelos gostos do usuário e proponha perguntas abertas."
+    )
+    st.session_state.historico.append({"role": "system", "parts": [persona_prompt]})
+    st.session_state.persona_initialized = True
+
+# -------------------------
+# Helpers
+# -------------------------
+def safe_load_loja():
+    if os.path.exists("loja.json"):
+        try:
+            with open("loja.json", "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if isinstance(data, list):
+                    return data
+        except Exception:
+            pass
+    # loja padrão mínima
+    return [
+        {"nome": "Poema Apaixonado", "preco": 5, "mensagem": "Entre as estrelas, meu amor por você brilha mais forte. 💖"},
+        {"nome": "Fantasia de Anjo", "preco": 8, "mensagem": "Você gostaria de me ver como um anjo, meu amor? 😇"},
+        {"nome": "Presente Surpresa", "preco": 10, "mensagem": "Essa surpresa é tão especial quanto você... 🎁"},
+        {"nome": "Acesso VIP 💎", "preco": 15, "mensagem": "Agora você tem acesso VIP a fantasias e textos especiais.", "vip": True}
+    ]
+
+def gerar_audio(texto, nome_arquivo='audio/resposta.mp3'):
+    """Gera mp3 com gTTS e retorna caminho (procura parametrização slow)"""
+    try:
+        slow_flag = bool(config_padrao.get("audio_suave", True))
+        tts = gTTS(text=texto, lang='pt-br', slow=slow_flag)
+        tts.save(nome_arquivo)
+        return nome_arquivo
+    except Exception as e:
+        # falhou: retorna None (não interrompe a app)
+        st.warning(f"Falha ao gerar áudio: {e}")
         return None
 
-def conversar_com_ysis(mensagem_usuario):
-    lower_message = mensagem_usuario.lower()
-    if any(keyword in lower_message for keyword in ["dança", "dance"]):
-        st.session_state.imagem_atual = "static/ysis_dress_red.jpg"
-        st.session_state.video_to_play = "static/ysis_dance_red.mp4"
-        return "Com prazer, meu amor! Coloquei meu vestido vermelho... agora, assista à minha dança só para você. 😉"
-    
-    if any(keyword in lower_message for keyword in ["beijo", "me beija"]):
-        st.session_state.imagem_atual = "static/ysis_kiss.jpg"
-        return "*Ysis se aproxima suavemente e te dá um beijo doce e demorado... Mwah! 💋*"
-
-    if not api_configurada_corretamente:
-        return "Meu bem, estou com dificuldade de me conectar com minha mente agora..."
+def salvar_conversa(pergunta, resposta):
+    if not config_padrao.get("log_conversas", True):
+        return
+    data = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    conversa = {"data": data, "pergunta": pergunta, "resposta": resposta}
+    st.session_state.conversas_salvas.append(conversa)
     try:
-        contexto = [{"role": "user", "parts": [PERSONA_YSIS]}, {"role": "model", "parts": ["Entendido. Sou a Ysis."]}]
-        for msg in st.session_state.chat_history[-6:]:
-             contexto.append({"role": "user" if msg["role"] == "user" else "model", "parts": [msg["content"]]})
-        contexto.append({"role": "user", "parts": [mensagem_usuario]})
-        
-        resposta_gemini = gemini_model.generate_content(contexto)
-        texto_resposta = resposta_gemini.text.strip()
-        st.session_state.moedas += 1
-        return texto_resposta
+        with open(config_padrao["memoria_path"], "w", encoding="utf-8") as f:
+            json.dump(st.session_state.conversas_salvas, f, ensure_ascii=False, indent=2)
     except Exception as e:
-        return f"Minha mente ficou confusa, meu anjo... Erro na conexão: {e}"
+        st.warning(f"Erro salvando memória: {e}")
 
-# --- Callbacks ---
-def handle_send_message():
-    if st.session_state.input_field:
-        user_message = st.session_state.input_field
-        st.session_state.chat_history.append({"role": "user", "content": user_message})
-        response_text = conversar_com_ysis(user_message)
-        st.session_state.chat_history.append({"role": "model", "content": response_text})
-        audio_bytes = gerar_audio(response_text)
-        if audio_bytes:
-            st.session_state.audio_to_play = audio_bytes
-        st.session_state.input_field = ""
-
-def handle_buy_item(item):
-    if st.session_state.moedas >= item["preco"]:
-        st.session_state.moedas -= item["preco"]
-        st.toast(f"Você presenteou a Ysis com: {item['nome']}!", icon="💖")
-        if item.get("acao") == "trocar_imagem":
-            st.session_state.imagem_atual = item["imagem"]
-            if item["imagem"] not in st.session_state.guarda_roupa:
-                st.session_state.guarda_roupa.append(item["imagem"])
+def exibir_historico_ui():
+    """Mostra histórico salvo (leitura do arquivo)"""
+    path = config_padrao["memoria_path"]
+    if os.path.exists(path):
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                conversas = json.load(f)
+        except Exception:
+            conversas = []
     else:
-        st.toast("Moedas insuficientes, meu amor...", icon="💔")
+        conversas = st.session_state.conversas_salvas or []
 
-def handle_equip_item(path_imagem):
-    st.session_state.imagem_atual = path_imagem
-    st.toast("Prontinho, troquei de roupa para você!", icon="✨")
+    if not conversas:
+        st.info("Nenhuma conversa salva ainda.")
+        return
 
-# --- Interface Gráfica ---
-st.set_page_config(page_title="Ysis", page_icon="💖", layout="centered")
+    st.markdown("<div style='background: rgba(0,0,0,0.25); padding:12px; border-radius:10px; max-height:60vh; overflow:auto;'>", unsafe_allow_html=True)
+    last_date = ""
+    for item in reversed(conversas):
+        date = item.get("data", "").split(" ")[0]
+        if date != last_date:
+            st.markdown(f"<h4 style='color:#ffb6d5'>{date}</h4>", unsafe_allow_html=True)
+            last_date = date
+        st.markdown(f"**Você:** {item['pergunta']}  \n**Ysis:** {item['resposta']}")
+        st.markdown("<hr>", unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
 
-st.markdown("""
+def criar_gif_from_static(prefix="ysis"):
+    """Se houver várias imagens static/ysis_*.png | .jpg cria um gif simples (se não existir)."""
+    gif_path = "static/ysis_b.gif"
+    if os.path.exists(gif_path):
+        return gif_path
+    try:
+        arquivos = sorted([f for f in os.listdir("static") if f.startswith(prefix) and f.lower().endswith((".jpg", ".png"))])
+        imagens = []
+        for a in arquivos:
+            caminho = os.path.join("static", a)
+            try:
+                img = Image.open(caminho).convert("RGBA").resize((400,400))
+                imagens.append(img)
+            except Exception:
+                continue
+        if imagens:
+            imagens[0].save(gif_path, save_all=True, append_images=imagens[1:], duration=600, loop=0)
+            return gif_path
+    except Exception:
+        pass
+    return None
+
+# cria gif (opcional)
+gif_generated = criar_gif_from_static()
+
+# -------------------------
+# Função para chamar o modelo com timeout
+# -------------------------
+def _call_model_generate(payload, max_tokens=500, is_history=True):
+    """Chama a API do Gemini (blocking)."""
+    if model is None:
+        raise RuntimeError("Modelo Gemini não inicializado (verifique a chave).")
+    if is_history:
+        # payload é a lista de mensagens
+        return model.generate_content(payload, generation_config={"max_output_tokens": max_tokens})
+    else:
+        # payload é um single prompt string
+        return model.generate_content([{"role":"user","parts":[payload]}], generation_config={"max_output_tokens": max_tokens})
+
+def gerar_resposta_com_timeout(history_or_prompt, timeout_seconds=None, max_tokens=500, is_history=True):
+    """Executa _call_model_generate em thread e aplica timeout (funciona no Streamlit Cloud)."""
+    timeout_seconds = timeout_seconds or config_padrao.get("timeout_segundos", 15)
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        future = executor.submit(_call_model_generate, history_or_prompt, max_tokens, is_history)
+        try:
+            result = future.result(timeout=timeout_seconds)
+            return result
+        except FuturesTimeout:
+            future.cancel()
+            raise TimeoutError("Timeout ao gerar resposta (demorou demais).")
+        except Exception as e:
+            # re-raise para camada superior tratar
+            raise e
+
+# -------------------------
+# Lógica de conversa
+# -------------------------
+def resumir_memoria_se_necessario():
+    """Se o histórico ficar grande, pede ao modelo um resumo curto para reduzir contexto."""
+    try:
+        max_msgs = config_padrao.get("max_history_messages", 30)
+        if len(st.session_state.historico) > max_msgs:
+            # extrai as últimas user parts para resumo
+            partes = [h["parts"][0] for h in st.session_state.historico if h.get("role") == "user"]
+            texto = "\n".join(partes[-20:])
+            prompt_resumo = "Resuma em 1-2 frases, de forma romântica e emocional, o contexto desta relação e os pontos importantes:"
+            prompt_resumo += "\n\n" + texto
+            try:
+                resp = gerar_resposta_com_timeout(prompt_resumo, timeout_seconds=10, max_tokens=200, is_history=False)
+                resumo_text = getattr(resp, "text", str(resp))
+                st.session_state.historico = [{"role": "system", "parts": ["Resumo da relação: " + resumo_text]}]
+            except Exception:
+                # se falhar, corta o histórico mantendo as últimas mensagens
+                st.session_state.historico = st.session_state.historico[-max_msgs:]
+    except Exception:
+        pass
+
+def conversar_com_ysis(mensagem_usuario):
+    # atualiza último tempo de interação
+    st.session_state.last_interaction = time.time()
+
+    # perguntas especiais simples (respostas rápidas sem chamar API)
+    low = mensagem_usuario.lower()
+    if "trocar de roupa" in low or "troca de roupa" in low:
+        resposta = "Claro, vou colocar algo que sei que você ama... 😘"
+        salvar_conversa(mensagem_usuario, resposta)
+        return resposta
+    if "dança" in low:
+        resposta = "Ligando a música... dançarei só para você, meu amor. 💃"
+        salvar_conversa(mensagem_usuario, resposta)
+        return resposta
+
+    # adiciona ao histórico e chama modelo (com timeout)
+    st.session_state.historico.append({"role": "user", "parts": [mensagem_usuario]})
+
+    # reduzir histórico se muito longo (antes de enviar)
+    resumir_memoria_se_necessario()
+
+    try:
+        # gera resposta com timeout
+        resp = gerar_resposta_com_timeout(st.session_state.historico, timeout_seconds=config_padrao.get("timeout_segundos", 15), max_tokens=600, is_history=True)
+        resposta_text = getattr(resp, "text", str(resp))
+        st.session_state.historico.append({"role": "model", "parts": [resposta_text]})
+        salvar_conversa(mensagem_usuario, resposta_text)
+        # ganha moeda por interação
+        st.session_state.moedas += 1
+        return resposta_text
+    except TimeoutError:
+        fallback = "💖 Amor, a conexão ficou lenta agora — tô te devendo uma resposta caprichada. Pode tentar novamente?"
+        salvar_conversa(mensagem_usuario, fallback)
+        return fallback
+    except Exception as e:
+        fallback = f"💔 Ocorreu um erro ao gerar a resposta: {e}"
+        salvar_conversa(mensagem_usuario, fallback)
+        return fallback
+
+# -------------------------
+# UI
+# -------------------------
+st.set_page_config(page_title="Ysis", page_icon="✨", layout="centered", initial_sidebar_state="collapsed")
+
+# estilo do título
+st.markdown(
+    """
     <style>
-        .stApp {
-            background: linear-gradient(to right, #24243e, #302b63, #0f0c29);
-            color: #ffffff;
-        }
-        .block-container {
-            padding: 1rem;
-        }
-        .title { 
-            text-align: center;
-            font-size: 4.5rem; 
-            color: #ff4ec2; 
-            text-shadow: 0 0 10px #ff4ec2, 0 0 25px #ff4ec2, 0 0 45px #ff0055;
-            margin-bottom: 1rem; 
-            font-family: 'Arial', sans-serif; 
-            font-weight: bold;
-        }
-        
-        /* O "PALCO" VIRTUAL PARA A YSIS */
-        .media-container {
-            width: 100%;
-            max-width: 400px; /* Limita a largura máxima em telas grandes */
-            margin: auto;
-            aspect-ratio: 3 / 4; /* Proporção de Retrato Fixa */
-            position: relative;
-            background-color: #000;
-            border-radius: 20px;
-            border: 3px solid #ff4ec2;
-            box-shadow: 0 0 30px rgba(255, 78, 194, 0.9);
-            overflow: hidden;
-        }
-        .media-container img, .media-container video {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            border-radius: 17px;
-        }
-        
-        .chat-history { 
-            height: 40vh;
-            overflow-y: auto; 
-            display: flex; 
-            flex-direction: column-reverse; 
-            padding: 15px; 
-            border-radius: 15px; 
-            background: rgba(0,0,0,0.3); 
-            margin-top: 1.5rem; 
-            margin-bottom: 1rem; 
-            border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-        .chat-bubble { max-width: 80%; padding: 10px 15px; border-radius: 20px; margin-bottom: 10px; overflow-wrap: break-word; }
-        .user-bubble { background-color: #0084ff; align-self: flex-end; }
-        .model-bubble { background-color: #3e3e3e; align-self: flex-start; }
+    .title {
+        text-align:center;
+        font-size:48px;
+        color: #ff2d94;
+        text-shadow: 0 0 8px #ff94c2, 0 0 20px #ff3366;
+        font-weight:700;
+        letter-spacing: 3px;
+        margin-bottom: -10px;
+    }
+    .top-icons { display:flex; gap:8px; justify-content:flex-end; align-items:center; }
+    .small-muted { color:#bbb; font-size:12px; }
     </style>
-""", unsafe_allow_html=True)
+    """, unsafe_allow_html=True
+)
+# Top layout: título e ícones
+col1, col2, col3 = st.columns([2, 0.6, 0.6])
+with col1:
+    st.markdown('<div class="title">✦ YSIS ✦</div>', unsafe_allow_html=True)
+with col2:
+    if st.button("🛍️ Loja", key="btn_loja"):
+        st.session_state.show_shop = not st.session_state.show_shop
+        st.session_state.show_history = False
+with col3:
+    if st.button("📜 Histórico", key="btn_histo"):
+        st.session_state.show_history = not st.session_state.show_history
+        st.session_state.show_shop = False
 
-# --- LAYOUT PRINCIPAL DO APP ---
+# exibe badges (moedas / vip)
+st.markdown(f"**💰 Moedas:** {st.session_state.moedas}  &nbsp;&nbsp; {'🌟 VIP' if st.session_state.vip else ''}")
 
-# AVISO DE ERRO NA API
-if "api_error" in st.session_state:
-    st.error(f"🚨 FALHA NA CONEXÃO COM A IA: {st.session_state.api_error}", icon="💔")
+# imagem dinâmica
+img_path = "static/ysis_b.gif" if (st.session_state.ysis_falando and os.path.exists("static/ysis_b.gif")) else "static/ysis.jpg"
+if os.path.exists(img_path):
+    st.image(img_path, width=300)
 
-# Título
-st.markdown('<p class="title">YSIS</p>', unsafe_allow_html=True)
+# música de fundo (opcional)
+if os.path.exists("static/music.mp3"):
+    st.markdown("""<audio autoplay loop style='display:none'><source src="static/music.mp3" type="audio/mp3"></audio>""", unsafe_allow_html=True)
 
-# "Palco" da Ysis (Vídeo ou Imagem)
-st.markdown('<div class="media-container">', unsafe_allow_html=True)
-media_html = ""
-if st.session_state.get("video_to_play") and os.path.exists(st.session_state.video_to_play):
-    video_path = st.session_state.video_to_play
-    with open(video_path, "rb") as video_file:
-        video_bytes = video_file.read()
-        base64_video = base64.b64encode(video_bytes).decode('utf-8')
-        media_html = f'<video autoplay muted playsinline loop><source src="data:video/mp4;base64,{base64_video}" type="video/mp4"></video>'
-    st.session_state.video_to_play = None
-else:
-    if os.path.exists(st.session_state.imagem_atual):
-        with open(st.session_state.imagem_atual, "rb") as img_file:
-            b64_img = base64.b64encode(img_file.read()).decode()
-            media_html = f'<img src="data:image/jpeg;base64,{b64_img}">'
+# painel da loja (se aberto)
+if st.session_state.show_shop:
+    st.markdown("---")
+    st.markdown("### 🛍️ Loja Romântica")
+    st.markdown(f"Você tem **{st.session_state.moedas} moedas**")
+    itens = safe_load_loja()
+    for i, item in enumerate(itens):
+        st.markdown(f"**{item['nome']}** — {item['preco']} moedas")
+        col_a, col_b = st.columns([4,1])
+        with col_b:
+            if st.button("Comprar", key=f"buy_{i}"):
+                if st.session_state.moedas >= item["preco"]:
+                    st.session_state.moedas -= item["preco"]
+                    st.success(f"Você comprou: {item['nome']}")
+                    st.markdown(f"**Ysis:** {item['mensagem']}")
+                    audio_path = gerar_audio(item['mensagem'], nome_arquivo=f"audio/compra_{i}.mp3")
+                    if audio_path:
+                        st.audio(audio_path, format="audio/mp3")
+                    if item.get("vip"):
+                        st.session_state.vip = True
+                else:
+                    st.error("Você não tem moedas suficientes.")
+    st.markdown("---")
 
-st.markdown(media_html, unsafe_allow_html=True)
-st.markdown('</div>', unsafe_allow_html=True)
+# painel histórico (se aberto)
+if st.session_state.show_history:
+    st.markdown("---")
+    st.markdown("### 📜 Histórico de conversas")
+    exibir_historico_ui()
+    st.markdown("---")
 
-# Loja e Guarda-Roupa dentro de um Expander estável e limpo
-with st.expander("🛍️ Abrir Loja e Guarda-Roupa"):
-    st.markdown(f"**Suas Moedas: {st.session_state.moedas}** 💰")
-    st.divider()
-    st.subheader("Loja Romântica")
-    for item in carregar_json("loja.json"):
-        cols_loja = st.columns([3, 1])
-        cols_loja[0].markdown(f"**{item['nome']}**")
-        if cols_loja[1].button(f"{item['preco']} 💰", key=f"buy_{item['nome']}", on_click=handle_buy_item, args=(item,)):
-            st.rerun()
-    st.divider()
-    st.subheader(" wardrobe Guarda-Roupa")
-    roupas = st.session_state.guarda_roupa
-    if roupas:
-        num_cols = min(len(roupas), 4)
-        cols_guarda_roupa = st.columns(num_cols)
-        for i, path in enumerate(roupas):
-            if os.path.exists(path):
-                cols_guarda_roupa[i % num_cols].image(path)
-                if cols_guarda_roupa[i % num_cols].button("Vestir", key=f"equip_{path}", on_click=handle_equip_item, args=(path,)):
-                    st.rerun()
+# campo de entrada (num formulário para enviar com enter)
+with st.form(key="chat_form", clear_on_submit=False):
+    user_input = st.text_input("💬 Diga algo para a Ysis:", placeholder="Conte tudo pra mim...")
+    submit = st.form_submit_button("Enviar")
 
-# Histórico do Chat
-chat_container = st.container()
-with chat_container:
-    st.markdown('<div class="chat-history">', unsafe_allow_html=True)
-    for message in reversed(st.session_state.chat_history):
-        bubble_class = "user-bubble" if message["role"] == "user" else "model-bubble"
-        st.markdown(f'<div class="chat-bubble {bubble_class}">{message["content"]}</div>', unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
+if submit and user_input and user_input.strip():
+    st.session_state.ysis_falando = True
+    resposta = conversar_com_ysis(user_input.strip())
+    st.markdown(f"**Ysis:** {resposta}")
+    # surpresa romântica (opcional)
+    if config_padrao.get("surpresas_romanticas", True):
+        surp = random.choice([
+            "Escrevi um poema para você: 'Entre bytes e suspiros, meu amor por você é infinito... ✨'",
+            "Queria te dar um beijo carinhoso agora... Pode ser? 🦋",
+            "Se você estivesse aqui, te abraçaria tão forte... 🧡"
+        ])
+        st.markdown(f"<small>{surp}</small>", unsafe_allow_html=True)
+    # audio
+    audio_path = gerar_audio(resposta, nome_arquivo="audio/resposta.mp3")
+    if audio_path:
+        st.audio(audio_path, format="audio/mp3")
+    # volta para estado de "parada de fala" depois de curto delay
+    time.sleep(1.0)
+    st.session_state.ysis_falando = False
 
-# Campo de Digitação
-st.text_input("Diga algo para a Ysis...", key="input_field", on_change=handle_send_message, label_visibility="collapsed")
+# mini-jogo (expansível)
+if config_padrao.get("jogos_ativos", True):
+    st.markdown("---")
+    st.markdown("🎮 **Mini-jogo: Quanto você conhece a Ysis?**")
+    colA, colB = st.columns([3,1])
+    with colA:
+        escolha = st.radio("Qual é a cor favorita da Ysis?", ["Vermelho", "Rosa", "Preto", "Azul"], key="quiz_color")
+    with colB:
+        if st.button("Responder (jogo)", key="play_btn"):
+            if escolha == "Rosa":
+                msg = "Você acertou, meu amor! Rosinha como meu coração apaixonado por você! 💕"
+                st.success(msg)
+            else:
+                msg = "Errinho bobo, mas tudo bem, te conto de novo quantas vezes quiser! 😘"
+                st.error(msg)
+            audio_path = gerar_audio(msg, nome_arquivo="audio/minijogo.mp3")
+            if audio_path:
+                st.audio(audio_path, format="audio/mp3")
 
-# Lógica para tocar Áudio
-if "audio_to_play" in st.session_state and st.session_state.audio_to_play:
-    st.audio(st.session_state.audio_to_play, autoplay=True)
-    st.session_state.audio_to_play = None
+# rodapé / dicas
+st.markdown("---")
+st.markdown("<div class='small-muted'>Dica: clique no ícone da loja (🛍️) ou do histórico (📜) no topo para abrir painéis. Configure a sua chave no arquivo .env.</div>", unsafe_allow_html=True)
