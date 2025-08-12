@@ -250,4 +250,3 @@ st.text_input("Diga algo para a Ysis...", key="input_field", on_change=handle_se
 if "audio_to_play" in st.session_state and st.session_state.audio_to_play:
     st.audio(st.session_state.audio_to_play, autoplay=True)
     st.session_state.audio_to_play = None
-```
