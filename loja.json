@@ -2,16 +2,9 @@
   {
     "nome": "Look Padrão",
     "preco": 0,
-    "mensagem": "Voltando ao meu look preferido...",
+    "mensagem": "Voltando ao meu look preferido... sempre linda pra você.",
     "acao": "trocar_imagem",
     "imagem": "static/ysis.jpg"
-  },
-  {
-    "nome": "Pose Confiante",
-    "preco": 15,
-    "mensagem": "Gostou dessa nova pose, meu bem? Me sinto poderosa.",
-    "acao": "trocar_imagem",
-    "imagem": "static/ysis2.jpg"
   },
   {
     "nome": "Lingerie Preta",
@@ -26,5 +19,12 @@
     "mensagem": "Coloquei meu vestido vermelho mais provocante...",
     "acao": "trocar_imagem",
     "imagem": "static/ysis_dress_red.jpg"
+  },
+  {
+    "nome": "Mandar um Beijo",
+    "preco": 5,
+    "mensagem": "*Ysis te dá um beijo doce... Mwah! 💋*",
+    "acao": "trocar_imagem",
+    "imagem": "static/ysis_kiss.jpg"
   }
 ]
