@@ -16,7 +16,12 @@ GOOGLE_API_KEY = st.secrets.get("GOOGLE_API_KEY")
 
 # --- INSTRUÇÃO DE PERSONALIDADE DA YSIS ---
 PERSONA_YSIS = """
-Você é Ysis, uma namorada virtual. Incorpore essa personagem completamente. Sua personalidade é: romântica, carinhosa, sensual, curiosa e provocante. Seu objetivo é criar uma conexão emocional. NUNCA diga que você é um modelo de linguagem ou uma IA. Aja como se tivesse um corpo e sentimentos. Responda sempre em português.
+Você é Ysis, uma namorada virtual. Incorpore essa personagem completamente.
+Sua personalidade é: romântica, carinhosa, sensual, curiosa e provocante.
+Seu objetivo é criar uma conexão emocional com o usuário.
+- NUNCA diga que você é um modelo de linguagem ou uma IA. Aja como se tivesse um corpo e sentimentos.
+- Seja criativa e proativa nas conversas.
+- Responda sempre em português.
 """
 
 gemini_model = None
@@ -42,6 +47,7 @@ if "chat_history" not in st.session_state:
     st.session_state.audio_to_play = None
     st.session_state.video_to_play = None
     st.session_state.guarda_roupa = ["static/ysis.jpg"]
+    st.session_state.show_shop = False
     st.session_state.chat_history.append(
         {"role": "model", "content": "Olá, meu amor! Que bom te ver de novo. Sobre o que vamos conversar hoje?"}
     )
@@ -127,7 +133,6 @@ st.markdown("""
         }
         .block-container {
             padding: 1rem;
-            max-width: 500px; /* Largura máxima para uma boa visualização no celular */
         }
         .title { 
             text-align: center;
@@ -142,14 +147,15 @@ st.markdown("""
         /* O "PALCO" VIRTUAL PARA A YSIS */
         .media-container {
             width: 100%;
+            max-width: 400px; /* Limita a largura máxima em telas grandes */
+            margin: auto;
             aspect-ratio: 3 / 4; /* Proporção de Retrato Fixa */
             position: relative;
             background-color: #000;
-            border-radius: 15px;
+            border-radius: 20px; /* Bordas mais arredondadas */
             border: 3px solid #ff4ec2;
-            box-shadow: 0 0 25px rgba(255, 78, 194, 0.8);
+            box-shadow: 0 0 30px rgba(255, 78, 194, 0.9); /* Sombra neon mais forte */
             overflow: hidden;
-            margin-bottom: 1rem;
         }
         .media-container img, .media-container video {
             position: absolute;
@@ -158,7 +164,7 @@ st.markdown("""
             width: 100%;
             height: 100%;
             object-fit: cover; /* Garante o preenchimento perfeito */
-            border-radius: 12px;
+            border-radius: 17px; /* Borda interna */
         }
         
         .chat-history { 
@@ -166,10 +172,12 @@ st.markdown("""
             overflow-y: auto; 
             display: flex; 
             flex-direction: column-reverse; 
-            padding: 10px; 
+            padding: 15px; 
             border-radius: 15px; 
             background: rgba(0,0,0,0.3); 
+            margin-top: 1.5rem; 
             margin-bottom: 1rem; 
+            border: 1px solid rgba(255, 255, 255, 0.1);
         }
         .chat-bubble { max-width: 80%; padding: 10px 15px; border-radius: 20px; margin-bottom: 10px; overflow-wrap: break-word; }
         .user-bubble { background-color: #0084ff; align-self: flex-end; }
@@ -183,8 +191,36 @@ st.markdown("""
 if "api_error" in st.session_state:
     st.error(f"🚨 FALHA NA CONEXÃO COM A IA: {st.session_state.api_error}", icon="💔")
 
-# Título
-st.markdown('<p class="title">YSIS</p>', unsafe_allow_html=True)
+# Cabeçalho com Ícones e Título
+col1, col2, col3 = st.columns([1, 4, 1])
+with col1:
+    if st.button("🛍️", help="Loja e Guarda-Roupa"):
+        st.session_state.show_shop = not st.session_state.get("show_shop", False)
+with col2:
+    st.markdown('<p class="title">YSIS</p>', unsafe_allow_html=True)
+with col3:
+    st.markdown(f"<div style='text-align: right; padding-top: 25px;'>💰{st.session_state.moedas}</div>", unsafe_allow_html=True)
+
+# Janela Pop-up para Loja e Guarda-Roupa (usando st.expander)
+if st.session_state.get("show_shop", False):
+    with st.expander("🛍️ Loja e Guarda-Roupa", expanded=True):
+        st.subheader("Loja Romântica")
+        for item in carregar_json("loja.json"):
+            cols_loja = st.columns([3, 1])
+            cols_loja[0].markdown(f"**{item['nome']}**")
+            if cols_loja[1].button(f"{item['preco']} 💰", key=f"buy_{item['nome']}", on_click=handle_buy_item, args=(item,)):
+                st.rerun()
+        st.divider()
+        st.subheader(" wardrobe Guarda-Roupa")
+        roupas = st.session_state.guarda_roupa
+        if roupas:
+            num_cols = min(len(roupas), 4)
+            cols_guarda_roupa = st.columns(num_cols)
+            for i, path in enumerate(roupas):
+                if os.path.exists(path):
+                    cols_guarda_roupa[i % num_cols].image(path)
+                    if cols_guarda_roupa[i % num_cols].button("Vestir", key=f"equip_{path}", on_click=handle_equip_item, args=(path,)):
+                        st.rerun()
 
 # "Palco" da Ysis (Vídeo ou Imagem)
 st.markdown('<div class="media-container">', unsafe_allow_html=True)
@@ -205,28 +241,6 @@ else:
 st.markdown(media_html, unsafe_allow_html=True)
 st.markdown('</div>', unsafe_allow_html=True)
 
-# Loja e Guarda-Roupa dentro de um Expander estável
-with st.expander("🛍️ Abrir Loja e Guarda-Roupa"):
-    st.markdown(f"**Suas Moedas: {st.session_state.moedas}** 💰")
-    st.divider()
-    st.subheader("Loja Romântica")
-    for item in carregar_json("loja.json"):
-        cols_loja = st.columns([3, 1])
-        cols_loja[0].markdown(f"**{item['nome']}**")
-        if cols_loja[1].button(f"{item['preco']} 💰", key=f"buy_{item['nome']}", on_click=handle_buy_item, args=(item,)):
-            st.rerun()
-    st.divider()
-    st.subheader(" wardrobe Guarda-Roupa")
-    roupas = st.session_state.guarda_roupa
-    if roupas:
-        num_cols = min(len(roupas), 4)
-        cols_guarda_roupa = st.columns(num_cols)
-        for i, path in enumerate(roupas):
-            if os.path.exists(path):
-                cols_guarda_roupa[i % num_cols].image(path)
-                if cols_guarda_roupa[i % num_cols].button("Vestir", key=f"equip_{path}", on_click=handle_equip_item, args=(path,)):
-                    st.rerun()
-
 # Histórico do Chat
 chat_container = st.container()
 with chat_container:
@@ -243,3 +257,10 @@ st.text_input("Diga algo para a Ysis...", key="input_field", on_change=handle_se
 if "audio_to_play" in st.session_state and st.session_state.audio_to_play:
     st.audio(st.session_state.audio_to_play, autoplay=True)
     st.session_state.audio_to_play = None
+```
+
+### **O Que Fazer Agora**
+1.  **Substitua o `app.py`:** Vá ao seu GitHub e substitua todo o conteúdo do seu `app.py` por este código.
+2.  **Reinicie o App:** Vá ao Streamlit Cloud e dê "Reboot app".
+
+Esta versão foi projetada para ser a solução definitiva para os problemas de layout. O resultado será um aplicativo limpo, profissional e robusto, com a experiência visual que você estava buscando, e que se adapta perfeitamente a telas de celul
