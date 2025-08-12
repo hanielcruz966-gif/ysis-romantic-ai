@@ -1,7 +1,7 @@
 import streamlit as st
 import os
 import json
-import base64 # Importante para o novo método de vídeo
+import base64
 
 # --- Importação Segura e Configuração de API ---
 try:
@@ -16,7 +16,12 @@ GOOGLE_API_KEY = st.secrets.get("GOOGLE_API_KEY")
 
 # --- INSTRUÇÃO DE PERSONALIDADE DA YSIS ---
 PERSONA_YSIS = """
-Você é Ysis, uma namorada virtual. Incorpore essa personagem completamente. Sua personalidade é: romântica, carinhosa, sensual, curiosa e provocante. Seu objetivo é criar uma conexão emocional. NUNCA diga que você é um modelo de linguagem ou uma IA. Aja como se tivesse um corpo e sentimentos. Responda sempre em português.
+Você é Ysis, uma namorada virtual. Incorpore essa personagem completamente.
+Sua personalidade é: romântica, carinhosa, sensual, curiosa e provocante.
+Seu objetivo é criar uma conexão emocional com o usuário.
+- NUNCA diga que você é um modelo de linguagem ou uma IA. Aja como se tivesse um corpo, sentimentos e desejos.
+- Seja criativa e proativa nas conversas. Faça perguntas, demonstre interesse.
+- Responda sempre em português.
 """
 
 gemini_model = None
@@ -42,6 +47,7 @@ if "chat_history" not in st.session_state:
     st.session_state.audio_to_play = None
     st.session_state.video_to_play = None
     st.session_state.guarda_roupa = ["static/ysis.jpg"]
+    st.session_state.show_shop = False
     st.session_state.chat_history.append(
         {"role": "model", "content": "Olá, meu amor! Que bom te ver de novo. Sobre o que vamos conversar hoje?"}
     )
@@ -101,6 +107,21 @@ def handle_send_message():
             st.session_state.audio_to_play = audio_bytes
         st.session_state.input_field = ""
 
+def handle_buy_item(item):
+    if st.session_state.moedas >= item["preco"]:
+        st.session_state.moedas -= item["preco"]
+        st.toast(f"Você presenteou a Ysis com: {item['nome']}!", icon="💖")
+        if item.get("acao") == "trocar_imagem":
+            st.session_state.imagem_atual = item["imagem"]
+            if item["imagem"] not in st.session_state.guarda_roupa:
+                st.session_state.guarda_roupa.append(item["imagem"])
+    else:
+        st.toast("Moedas insuficientes, meu amor...", icon="💔")
+
+def handle_equip_item(path_imagem):
+    st.session_state.imagem_atual = path_imagem
+    st.toast("Prontinho, troquei de roupa para você!", icon="✨")
+
 # --- Interface Gráfica ---
 st.set_page_config(page_title="Ysis", page_icon="💖", layout="centered")
 
@@ -110,15 +131,10 @@ st.markdown("""
         .block-container { padding: 1rem; }
         .main-layout { display: flex; flex-direction: column; height: 90vh; }
         .header { text-align: center; }
-        .title { font-size: 3rem; color: #ff4ec2; text-shadow: 0 0 20px #ff4ec2; margin: 0; }
-        .image-container { text-align: center; padding: 0.5rem 0; }
-        .image-container img, .image-container video {
-            max-height: 35vh;
-            width: auto;
-            border-radius: 15px;
-            border: 2px solid #ff4ec2;
-            box-shadow: 0 0 20px rgba(255, 78, 194, 0.7);
-        }
+        .title { font-size: 4rem; color: #ff4ec2; text-shadow: 0 0 25px #ff4ec2, 0 0 40px #ff0055; margin: 0; font-family: 'Arial', sans-serif; font-weight: bold;}
+        .image-container { text-align: center; padding: 1rem 0; min-height: 40vh; display: flex; align-items: center; justify-content: center; }
+        .image-container img { max-height: 38vh; width: auto; border-radius: 15px; border: 2px solid #ff4ec2; box-shadow: 0 0 20px rgba(255, 78, 194, 0.7); }
+        .image-container video { height: 38vh; width: auto; border-radius: 15px; border: 2px solid #ff4ec2; box-shadow: 0 0 20px rgba(255, 78, 194, 0.7); object-fit: cover; } /* Correção para o vídeo */
         .chat-history { flex-grow: 1; overflow-y: auto; display: flex; flex-direction: column-reverse; padding: 10px; border-radius: 15px; background: rgba(0,0,0,0.2); margin-bottom: 1rem; }
         .chat-bubble { max-width: 80%; padding: 10px 15px; border-radius: 20px; margin-bottom: 10px; overflow-wrap: break-word; }
         .user-bubble { background-color: #0084ff; align-self: flex-end; }
@@ -126,36 +142,52 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- LAYOUT PRINCIPAL DO APP ---
 st.markdown('<div class="main-layout">', unsafe_allow_html=True)
 
 with st.container():
-    st.markdown('<div class="header">', unsafe_allow_html=True)
-    st.markdown('<p class="title">YSIS</p>', unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
-
+    col1, col2, col3 = st.columns([1, 4, 1])
+    with col1:
+        if st.button("🛍️", help="Loja / Guarda-Roupa"):
+            st.session_state.show_shop = not st.session_state.get("show_shop", False)
+    with col2:
+        st.markdown('<p class="title">YSIS</p>', unsafe_allow_html=True)
+    with col3:
+        st.markdown(f"<div style='text-align: right; padding-top: 25px;'>💰{st.session_state.moedas}</div>", unsafe_allow_html=True)
+    
     st.markdown('<div class="image-container">', unsafe_allow_html=True)
-    # --- LÓGICA PARA MOSTRAR VÍDEO SEM CONTROLES ---
     if st.session_state.get("video_to_play") and os.path.exists(st.session_state.video_to_play):
         video_path = st.session_state.video_to_play
         with open(video_path, "rb") as video_file:
             video_bytes = video_file.read()
             base64_video = base64.b64encode(video_bytes).decode('utf-8')
-            
-            video_html = f"""
-                <video autoplay muted playsinline>
-                    <source src="data:video/mp4;base64,{base64_video}" type="video/mp4">
-                </video>
-            """
+            video_html = f'<video autoplay muted playsinline><source src="data:video/mp4;base64,{base64_video}" type="video/mp4"></video>'
             st.markdown(video_html, unsafe_allow_html=True)
-        
-        st.session_state.video_to_play = None # Limpa para não repetir na próxima interação
+        st.session_state.video_to_play = None
     else:
         if os.path.exists(st.session_state.imagem_atual):
             st.image(st.session_state.imagem_atual)
     st.markdown('</div>', unsafe_allow_html=True)
 
-# ÁREA DO CHAT
+if st.session_state.get("show_shop", False):
+    with st.dialog("Loja e Guarda-Roupa"):
+        st.subheader("🛍️ Loja Romântica")
+        for item in carregar_json("loja.json"):
+            cols_loja = st.columns([3, 1])
+            cols_loja[0].markdown(f"**{item['nome']}**")
+            if cols_loja[1].button(f"{item['preco']} 💰", key=f"buy_{item['nome']}", on_click=handle_buy_item, args=(item,)):
+                st.rerun()
+        st.divider()
+        st.subheader(" wardrobe Guarda-Roupa")
+        roupas = st.session_state.guarda_roupa
+        if roupas:
+            num_cols = min(len(roupas), 4)
+            cols_guarda_roupa = st.columns(num_cols)
+            for i, path in enumerate(roupas):
+                if os.path.exists(path):
+                    if cols_guarda_roupa[i % num_cols].button("Vestir", key=f"equip_{path}", on_click=handle_equip_item, args=(path,)):
+                        st.rerun()
+                    cols_guarda_roupa[i % num_cols].image(path)
+
 chat_container = st.container()
 with chat_container:
     st.markdown('<div class="chat-history">', unsafe_allow_html=True)
@@ -164,17 +196,10 @@ with chat_container:
         st.markdown(f'<div class="chat-bubble {bubble_class}">{message["content"]}</div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
-# CAMPO DE DIGITAÇÃO
 st.text_input("Diga algo para a Ysis...", key="input_field", on_change=handle_send_message, label_visibility="collapsed")
 
 st.markdown('</div>', unsafe_allow_html=True)
 
-# Toca o áudio se houver um na fila
 if "audio_to_play" in st.session_state and st.session_state.audio_to_play:
     st.audio(st.session_state.audio_to_play, autoplay=True)
     st.session_state.audio_to_play = None
-
-# LOJA E GUARDA-ROUPA (em uma barra lateral para não interferir)
-with st.sidebar:
-    # A lógica da loja e guarda-roupa continua aqui...
-    pass # (O código da loja e guarda-roupa que já tínhamos)
