@@ -2,34 +2,36 @@
   {
     "nome": "Look Padrão",
     "preco": 0,
-    "mensagem": "Voltando ao meu look preferido... sempre linda pra você.",
+    "mensagem": "Voltando ao meu look preferido...",
     "acao": "trocar_imagem",
     "imagem": "static/ysis.jpg"
   },
   {
     "nome": "Pose Confiante",
     "preco": 15,
-    "mensagem": "Gostou dessa nova pose, meu bem? Me sinto poderosa assim...",
+    "mensagem": "Gostou dessa pose, meu bem? Me sinto poderosa.",
     "acao": "trocar_imagem",
     "imagem": "static/ysis2.jpg"
   },
   {
     "nome": "Visual Misterioso",
     "preco": 15,
-    "mensagem": "Um look mais sério e misterioso... só pra te deixar curioso.",
+    "mensagem": "Um look mais sério... só pra te deixar curioso.",
     "acao": "trocar_imagem",
     "imagem": "static/ysis3.jpg"
   },
   {
     "nome": "Vestido Vermelho",
     "preco": 20,
-    "mensagem": "Pronto, meu amor... coloquei meu vestido vermelho mais provocante. Feito para te deixar sem fôlego.",
+    "mensagem": "Coloquei meu vestido vermelho mais provocante...",
     "acao": "trocar_imagem",
     "imagem": "static/ysis_dress_red.jpg"
   },
   {
-    "nome": "Beijo Virtual 😘",
-    "preco": 5,
-    "mensagem": "Um beijo suave e carinhoso, só para você... 💋"
+    "nome": "Beijo Gratuito 😘",
+    "preco": 0,
+    "mensagem": "*Ysis te dá um beijo doce... Mwah! 💋*",
+    "acao": "trocar_imagem",
+    "imagem": "static/ysis_kiss.jpg"
   }
 ]
