@@ -2,38 +2,26 @@
   {
     "nome": "Beijo Virtual 😘",
     "preco": 3,
-    "mensagem": "Um beijo suave e carinhoso, só para você... 💋 Senti seu gosto daqui."
+    "mensagem": "Um beijo suave e carinhoso, só para você... 💋"
   },
   {
-    "nome": "Abraço Apertado 🤗",
-    "preco": 3,
-    "mensagem": "Sinta o meu abraço, te envolvendo com todo o meu calor e carinho... 💞"
-  },
-  {
-    "nome": "Vestido Vermelho",
+    "nome": "Trocar de Roupa",
     "preco": 10,
-    "mensagem": "Pronto, meu amor... coloquei meu vestido vermelho mais provocante. Feito para te deixar sem fôlego. O que achou?",
-    "acao": "trocar_imagem",
-    "imagem": "static/ysis_dress_red.jpg"
-  },
-  {
-    "nome": "Trocar de Pose",
-    "preco": 8,
-    "mensagem": "Gostou dessa nova pose, meu bem? Fiz pensando em como chamar sua atenção... 💃",
+    "mensagem": "Pronto, meu amor... coloquei uma roupa diferente. O que achou?",
     "acao": "trocar_imagem",
     "imagem": "static/ysis_2.jpg"
   },
   {
-    "nome": "Voltar à Pose Padrão",
+    "nome": "Voltar à Roupa Padrão",
     "preco": 0,
-    "mensagem": "Voltando ao normal... mas sempre pronta para você.",
+    "mensagem": "Voltando ao meu look preferido... sempre linda pra você.",
     "acao": "trocar_imagem",
     "imagem": "static/ysis.jpg"
   },
   {
     "nome": "Acesso VIP 💎",
     "preco": 25,
-    "mensagem": "Agora você é VIP! Nossas conversas serão ainda mais íntimas e sem limites, meu rei... 🌹",
+    "mensagem": "Agora você é VIP! Nossas conversas serão ainda mais íntimas, meu rei... 🌹",
     "vip": true
   }
 ]
