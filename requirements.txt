@@ -1,6 +1,4 @@
-streamlit
+streamlit>=1.33.0
 google-generativeai
-openai
 gtts
-python-dotenv
-Pillow
+pillow
