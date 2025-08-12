@@ -9,14 +9,14 @@
   {
     "nome": "Pose Confiante",
     "preco": 15,
-    "mensagem": "Gostou dessa pose, meu bem? Me sinto poderosa.",
+    "mensagem": "Gostou dessa nova pose, meu bem? Me sinto poderosa.",
     "acao": "trocar_imagem",
     "imagem": "static/ysis2.jpg"
   },
   {
-    "nome": "Visual Misterioso",
-    "preco": 15,
-    "mensagem": "Um look mais sério... só pra te deixar curioso.",
+    "nome": "Lingerie Preta",
+    "preco": 25,
+    "mensagem": "Tirei tudo... fiquei só com essa lingerie preta, especialmente para você. Gostou do que vê?",
     "acao": "trocar_imagem",
     "imagem": "static/ysis3.jpg"
   },
@@ -26,12 +26,5 @@
     "mensagem": "Coloquei meu vestido vermelho mais provocante...",
     "acao": "trocar_imagem",
     "imagem": "static/ysis_dress_red.jpg"
-  },
-  {
-    "nome": "Beijo Gratuito 😘",
-    "preco": 0,
-    "mensagem": "*Ysis te dá um beijo doce... Mwah! 💋*",
-    "acao": "trocar_imagem",
-    "imagem": "static/ysis_kiss.jpg"
   }
 ]
