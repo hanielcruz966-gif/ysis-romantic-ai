@@ -146,9 +146,9 @@ st.markdown("""
         /* O "PALCO" VIRTUAL PARA A YSIS */
         .media-container {
             width: 100%;
-            max-width: 400px;
+            max-width: 400px; /* Limita a largura máxima em telas grandes */
             margin: auto;
-            aspect-ratio: 3 / 4;
+            aspect-ratio: 3 / 4; /* Proporção de Retrato Fixa */
             position: relative;
             background-color: #000;
             border-radius: 20px;
@@ -250,10 +250,3 @@ st.text_input("Diga algo para a Ysis...", key="input_field", on_change=handle_se
 if "audio_to_play" in st.session_state and st.session_state.audio_to_play:
     st.audio(st.session_state.audio_to_play, autoplay=True)
     st.session_state.audio_to_play = None
-```
-
-### **O Que Fazer Agora**
-1.  **Substitua o `app.py`:** Vá ao seu GitHub e substitua todo o conteúdo do seu `app.py` por este código.
-2.  **Reinicie o App:** Vá ao Streamlit Cloud e dê "Reboot app".
-
-Esta versão foi projetada para ser a solução definitiva para os problemas de layout. O resultado será um aplicativo limpo, profissional e robusto, com a experiência visual que você estava buscando, e que se adapta perfeitamente a telas de celul
