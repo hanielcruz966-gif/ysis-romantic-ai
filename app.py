@@ -134,6 +134,7 @@ st.markdown("""
             font-weight: bold;
         }
         
+        /* O "PALCO" VIRTUAL PARA A YSIS */
         .media-container {
             width: 100%;
             max-width: 400px;
@@ -182,7 +183,7 @@ if "api_error" in st.session_state:
 # Título
 st.markdown('<p class="title">YSIS</p>', unsafe_allow_html=True)
 
-# "Palco" da Ysis (Vídeo ou Imagem) - Renderizado de forma unificada
+# "Palco" da Ysis (Vídeo ou Imagem)
 st.markdown('<div class="media-container">', unsafe_allow_html=True)
 media_html = ""
 if st.session_state.get("video_to_play") and os.path.exists(st.session_state.video_to_play):
@@ -191,7 +192,7 @@ if st.session_state.get("video_to_play") and os.path.exists(st.session_state.vid
         video_bytes = video_file.read()
         base64_video = base64.b64encode(video_bytes).decode('utf-8')
         media_html = f'<video autoplay muted playsinline loop><source src="data:video/mp4;base64,{base64_video}" type="video/mp4"></video>'
-    st.session_state.video_to_play = None # Limpa para não repetir
+    st.session_state.video_to_play = None
 else:
     if os.path.exists(st.session_state.imagem_atual):
         with open(st.session_state.imagem_atual, "rb") as img_file:
