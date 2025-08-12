@@ -1,10 +1,12 @@
 {
-  "modelo": "models/gemini-2.5-flash",
+  "modelo": "models/gemini-1.5-pro",
   "memoria_path": "memoria_ysis.json",
-  "modo_adulto_ativo": true,
+  "modo_adulto_ativo": false,
   "tema": "romantico",
   "audio_suave": true,
   "surpresas_romanticas": true,
   "jogos_ativos": true,
-  "log_conversas": true
+  "log_conversas": true,
+  "timeout_segundos": 15,
+  "max_history_messages": 30
 }
