@@ -1,5 +1,6 @@
-streamlit>=1.15
+streamlit
+google-generativeai
+openai
 gtts
 python-dotenv
-google-generativeai
 Pillow
