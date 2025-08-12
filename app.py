@@ -110,16 +110,35 @@ st.set_page_config(page_title="Ysis", page_icon="💖", layout="centered")
 st.markdown("""
     <style>
         .stApp { background: #0f0c29; background: -webkit-linear-gradient(to right, #24243e, #302b63, #0f0c29); color: #ffffff; }
-        /* Remove o espaço extra no topo */
-        .block-container { padding-top: 2rem; }
-        .title { text-align: center; font-size: 3.5rem; color: #ff4ec2; text-shadow: 0 0 25px #ff4ec2, 0 0 40px #ff0055; margin-bottom: 1rem; font-family: 'Arial', sans-serif; font-weight: bold;}
-        .image-container img { border-radius: 15px; box-shadow: 0 0 20px rgba(255, 78, 194, 0.7); border: 2px solid #ff4ec2; }
-        .chat-history { height: 50vh; overflow-y: auto; display: flex; flex-direction: column-reverse; padding: 15px; border-radius: 15px; background: rgba(0,0,0,0.3); margin-bottom: 1rem; }
+        .block-container { padding: 1rem; }
+        .header {
+            position: sticky;
+            top: 0;
+            background: linear-gradient(to right, #24243e, #302b63, #0f0c29);
+            padding: 1rem;
+            z-index: 99;
+            border-bottom: 2px solid #ff4ec2;
+            box-shadow: 0 4px 15px rgba(255, 78, 194, 0.4);
+        }
+        .title { text-align: center; font-size: 2.5rem; color: #ff4ec2; text-shadow: 0 0 20px #ff4ec2; font-family: 'Arial', sans-serif; font-weight: bold;}
+        .image-container img { border-radius: 15px; }
+        .chat-history { height: 45vh; overflow-y: auto; display: flex; flex-direction: column-reverse; padding: 10px; border-radius: 15px; background: rgba(0,0,0,0.3); margin-top: 1rem; margin-bottom: 1rem; }
         .chat-bubble { max-width: 80%; padding: 10px 15px; border-radius: 20px; margin-bottom: 10px; overflow-wrap: break-word; }
         .user-bubble { background-color: #0084ff; align-self: flex-end; }
         .model-bubble { background-color: #3e3e3e; align-self: flex-start; }
     </style>
 """, unsafe_allow_html=True)
+
+# --- CABEÇALHO FIXO ---
+with st.container():
+    st.markdown('<div class="header">', unsafe_allow_html=True)
+    st.markdown('<p class="title">YSIS</p>', unsafe_allow_html=True)
+    if os.path.exists(st.session_state.imagem_atual):
+        st.image(st.session_state.imagem_atual, use_container_width=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+
+# --- CONTEÚDO ROLÁVEL ---
 
 # AVISO DE ERRO NA API
 if "api_error" in st.session_state:
@@ -129,12 +148,6 @@ if "api_error" in st.session_state:
 tab1, tab2 = st.tabs(["Conversa com Ysis", "🛍️ Loja e Guarda-Roupa"])
 
 with tab1:
-    st.markdown('<p class="title">YSIS</p>', unsafe_allow_html=True)
-    
-    if os.path.exists(st.session_state.imagem_atual):
-        st.image(st.session_state.imagem_atual, use_container_width=True)
-    
-    # Histórico do Chat
     chat_container = st.container()
     with chat_container:
         st.markdown('<div class="chat-history">', unsafe_allow_html=True)
@@ -142,14 +155,12 @@ with tab1:
             bubble_class = "user-bubble" if message["role"] == "user" else "model-bubble"
             st.markdown(f'<div class="chat-bubble {bubble_class}">{message["content"]}</div>', unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
-        
-    # Campo de digitação
+    
     st.text_input("Diga algo para a Ysis...", key="input_field", on_change=handle_send_message, label_visibility="collapsed")
 
 with tab2:
     st.markdown(f"**Suas Moedas: {st.session_state.moedas}** 💰")
     st.divider()
-
     st.subheader("🛍️ Loja Romântica")
     for item in carregar_json("loja.json"):
         cols = st.columns([3, 1])
@@ -160,20 +171,20 @@ with tab2:
                 st.rerun()
     
     st.divider()
-
     st.subheader(" wardrobe Guarda-Roupa")
     st.write("Aqui ficam as roupas que você já me deu. Clique para eu vestir!")
     
     roupas_compradas = st.session_state.guarda_roupa
     if roupas_compradas:
-        # Garante que não teremos mais colunas que itens
-        num_cols = min(len(roupas_compradas), 4) # Máximo de 4 colunas para não ficar apertado
+        num_cols = min(len(roupas_compradas), 4)
         cols = st.columns(num_cols)
         for i, path_imagem in enumerate(roupas_compradas):
             with cols[i % num_cols]:
-                st.image(path_imagem)
-                if st.button("Vestir", key=f"equip_{path_imagem}", use_container_width=True, on_click=handle_equip_item, args=(path_imagem,)):
-                    st.rerun()
+                # Adiciona verificação para não quebrar se o arquivo for deletado
+                if os.path.exists(path_imagem):
+                    st.image(path_imagem)
+                    if st.button("Vestir", key=f"equip_{path_imagem}", use_container_width=True, on_click=handle_equip_item, args=(path_imagem,)):
+                        st.rerun()
     else:
         st.info("Meu guarda-roupa está vazio, meu amor.")
 
