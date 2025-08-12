@@ -121,9 +121,14 @@ st.set_page_config(page_title="Ysis", page_icon="💖", layout="centered")
 
 st.markdown("""
     <style>
-        .stApp { background: linear-gradient(to right, #24243e, #302b63, #0f0c29); color: #ffffff; }
-        .block-container { padding: 1rem; }
-        
+        .stApp {
+            background: linear-gradient(to right, #24243e, #302b63, #0f0c29);
+            color: #ffffff;
+        }
+        .block-container {
+            padding: 1rem;
+            max-width: 500px; /* Largura máxima para uma boa visualização no celular */
+        }
         .title { 
             text-align: center;
             font-size: 4.5rem; 
@@ -137,15 +142,14 @@ st.markdown("""
         /* O "PALCO" VIRTUAL PARA A YSIS */
         .media-container {
             width: 100%;
-            max-width: 400px;
-            margin: auto;
-            aspect-ratio: 3 / 4;
+            aspect-ratio: 3 / 4; /* Proporção de Retrato Fixa */
             position: relative;
             background-color: #000;
             border-radius: 15px;
             border: 3px solid #ff4ec2;
             box-shadow: 0 0 25px rgba(255, 78, 194, 0.8);
             overflow: hidden;
+            margin-bottom: 1rem;
         }
         .media-container img, .media-container video {
             position: absolute;
@@ -153,7 +157,7 @@ st.markdown("""
             left: 0;
             width: 100%;
             height: 100%;
-            object-fit: cover;
+            object-fit: cover; /* Garante o preenchimento perfeito */
             border-radius: 12px;
         }
         
@@ -165,7 +169,6 @@ st.markdown("""
             padding: 10px; 
             border-radius: 15px; 
             background: rgba(0,0,0,0.3); 
-            margin-top: 1.5rem; 
             margin-bottom: 1rem; 
         }
         .chat-bubble { max-width: 80%; padding: 10px 15px; border-radius: 20px; margin-bottom: 10px; overflow-wrap: break-word; }
