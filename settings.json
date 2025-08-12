@@ -1,6 +1,6 @@
 {
   "provider": "google",
-  "google_model": "models/gemini-1.5-pro",
+  "google_model": "models/gemini-1.5-flash",
   "openai_model": "gpt-4o-mini",
   "memoria_path": "memoria_ysis.json",
   "modo_adulto_ativo": false,
@@ -11,3 +11,4 @@
   "history_max_messages": 14,
   "timeout_seconds": 15
 }
+
