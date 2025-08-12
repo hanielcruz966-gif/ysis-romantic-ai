@@ -42,7 +42,6 @@ if "chat_history" not in st.session_state:
     st.session_state.audio_to_play = None
     st.session_state.video_to_play = None
     st.session_state.guarda_roupa = ["static/ysis.jpg"]
-    st.session_state.show_shop = False
     st.session_state.chat_history.append(
         {"role": "model", "content": "Olá, meu amor! Que bom te ver de novo. Sobre o que vamos conversar hoje?"}
     )
@@ -127,7 +126,7 @@ st.markdown("""
         
         .title { 
             text-align: center;
-            font-size: 4rem; 
+            font-size: 4.5rem; 
             color: #ff4ec2; 
             text-shadow: 0 0 10px #ff4ec2, 0 0 25px #ff4ec2, 0 0 45px #ff0055;
             margin-bottom: 1rem; 
@@ -135,18 +134,17 @@ st.markdown("""
             font-weight: bold;
         }
         
-        /* O "PALCO" VIRTUAL PERFEITO PARA A YSIS */
         .media-container {
             width: 100%;
             max-width: 400px;
             margin: auto;
-            aspect-ratio: 3 / 4;  /* Proporção de Retrato Fixa */
+            aspect-ratio: 3 / 4;
             position: relative;
-            border-radius: 15px;
             background-color: #000;
-            overflow: hidden;
+            border-radius: 15px;
             border: 3px solid #ff4ec2;
             box-shadow: 0 0 25px rgba(255, 78, 194, 0.8);
+            overflow: hidden;
         }
         .media-container img, .media-container video {
             position: absolute;
@@ -154,7 +152,7 @@ st.markdown("""
             left: 0;
             width: 100%;
             height: 100%;
-            object-fit: cover; /* Preenche o quadro perfeitamente */
+            object-fit: cover;
             border-radius: 12px;
         }
         
@@ -172,16 +170,6 @@ st.markdown("""
         .chat-bubble { max-width: 80%; padding: 10px 15px; border-radius: 20px; margin-bottom: 10px; overflow-wrap: break-word; }
         .user-bubble { background-color: #0084ff; align-self: flex-end; }
         .model-bubble { background-color: #3e3e3e; align-self: flex-start; }
-        
-        /* PAINEL DA LOJA TRANSPARENTE */
-        .shop-panel {
-            background-color: rgba(20, 20, 40, 0.85);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 78, 194, 0.5);
-            border-radius: 15px;
-            padding: 1rem;
-            margin-bottom: 1rem;
-        }
     </style>
 """, unsafe_allow_html=True)
 
@@ -191,57 +179,49 @@ st.markdown("""
 if "api_error" in st.session_state:
     st.error(f"🚨 FALHA NA CONEXÃO COM A IA: {st.session_state.api_error}", icon="💔")
 
-# Cabeçalho com Ícones e Título
-col1, col2, col3 = st.columns([1, 4, 1])
-with col1:
-    if st.button("🛍️", help="Loja / Guarda-Roupa"):
-        st.session_state.show_shop = not st.session_state.get("show_shop", False)
-with col2:
-    st.markdown('<p class="title">YSIS</p>', unsafe_allow_html=True)
-with col3:
-    st.markdown(f"<div style='text-align: right; padding-top: 25px;'>💰{st.session_state.moedas}</div>", unsafe_allow_html=True)
+# Título
+st.markdown('<p class="title">YSIS</p>', unsafe_allow_html=True)
 
-# Painel da Loja (aparece como uma barra transparente quando ativado)
-if st.session_state.get("show_shop", False):
-    with st.container():
-        st.markdown('<div class="shop-panel">', unsafe_allow_html=True)
-        st.subheader("Loja Romântica")
-        for item in carregar_json("loja.json"):
-            cols_loja = st.columns([3, 1])
-            cols_loja[0].markdown(f"**{item['nome']}**")
-            if cols_loja[1].button(f"{item['preco']} 💰", key=f"buy_{item['nome']}", on_click=handle_buy_item, args=(item,)):
-                st.rerun()
-        st.divider()
-        st.subheader(" wardrobe Guarda-Roupa")
-        roupas = st.session_state.guarda_roupa
-        if roupas:
-            num_cols = min(len(roupas), 4)
-            cols_guarda_roupa = st.columns(num_cols)
-            for i, path in enumerate(roupas):
-                if os.path.exists(path):
-                    cols_guarda_roupa[i % num_cols].image(path)
-                    if cols_guarda_roupa[i % num_cols].button("Vestir", key=f"equip_{path}", on_click=handle_equip_item, args=(path,)):
-                        st.rerun()
-        st.markdown('</div>', unsafe_allow_html=True)
-
-
-# "Palco" da Ysis (Vídeo ou Imagem)
+# "Palco" da Ysis (Vídeo ou Imagem) - Renderizado de forma unificada
 st.markdown('<div class="media-container">', unsafe_allow_html=True)
+media_html = ""
 if st.session_state.get("video_to_play") and os.path.exists(st.session_state.video_to_play):
     video_path = st.session_state.video_to_play
     with open(video_path, "rb") as video_file:
         video_bytes = video_file.read()
         base64_video = base64.b64encode(video_bytes).decode('utf-8')
-        video_html = f'<video autoplay muted playsinline loop><source src="data:video/mp4;base64,{base64_video}" type="video/mp4"></video>'
-        st.markdown(video_html, unsafe_allow_html=True)
-    st.session_state.video_to_play = None
+        media_html = f'<video autoplay muted playsinline loop><source src="data:video/mp4;base64,{base64_video}" type="video/mp4"></video>'
+    st.session_state.video_to_play = None # Limpa para não repetir
 else:
     if os.path.exists(st.session_state.imagem_atual):
         with open(st.session_state.imagem_atual, "rb") as img_file:
             b64_img = base64.b64encode(img_file.read()).decode()
-            img_html = f'<img src="data:image/jpeg;base64,{b64_img}">'
-            st.markdown(img_html, unsafe_allow_html=True)
+            media_html = f'<img src="data:image/jpeg;base64,{b64_img}">'
+
+st.markdown(media_html, unsafe_allow_html=True)
 st.markdown('</div>', unsafe_allow_html=True)
+
+# Loja e Guarda-Roupa dentro de um Expander estável
+with st.expander("🛍️ Abrir Loja e Guarda-Roupa"):
+    st.markdown(f"**Suas Moedas: {st.session_state.moedas}** 💰")
+    st.divider()
+    st.subheader("Loja Romântica")
+    for item in carregar_json("loja.json"):
+        cols_loja = st.columns([3, 1])
+        cols_loja[0].markdown(f"**{item['nome']}**")
+        if cols_loja[1].button(f"{item['preco']} 💰", key=f"buy_{item['nome']}", on_click=handle_buy_item, args=(item,)):
+            st.rerun()
+    st.divider()
+    st.subheader(" wardrobe Guarda-Roupa")
+    roupas = st.session_state.guarda_roupa
+    if roupas:
+        num_cols = min(len(roupas), 4)
+        cols_guarda_roupa = st.columns(num_cols)
+        for i, path in enumerate(roupas):
+            if os.path.exists(path):
+                cols_guarda_roupa[i % num_cols].image(path)
+                if cols_guarda_roupa[i % num_cols].button("Vestir", key=f"equip_{path}", on_click=handle_equip_item, args=(path,)):
+                    st.rerun()
 
 # Histórico do Chat
 chat_container = st.container()
