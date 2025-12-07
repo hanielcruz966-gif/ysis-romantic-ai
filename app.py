@@ -2,251 +2,350 @@ import streamlit as st
 import os
 import json
 import base64
+import time
+from dotenv import load_dotenv
 
-# --- Importação Segura e Configuração de API ---
+# --- Configuração da Página (Deve ser o primeiro comando Streamlit) ---
+st.set_page_config(page_title="Ysis - Sua Namorada Virtual", page_icon="💖", layout="centered")
+
+# --- Importação Segura de Bibliotecas Externas ---
 try:
     import google.generativeai as genai
     from gtts import gTTS
 except ImportError as e:
-    st.error(f"Erro de importação: a biblioteca '{e.name}' não foi encontrada. Verifique seu `requirements.txt`.")
+    st.error(f"Erro de ambiente: A biblioteca '{e.name}' não foi encontrada. Verifique o requirements.txt.")
     st.stop()
 
-# Lê a chave de API de forma segura dos "Secrets" do Streamlit
-GOOGLE_API_KEY = st.secrets.get("GOOGLE_API_KEY")
+# --- Carregar Variáveis de Ambiente ---
+load_dotenv() # Para teste local
+# Tenta pegar dos Secrets (Nuvem) ou do .env (Local)
+GOOGLE_API_KEY = st.secrets.get("GOOGLE_API_KEY") or os.getenv("GOOGLE_API_KEY")
 
-# --- INSTRUÇÃO DE PERSONALIDADE DA YSIS ---
+# --- SISTEMA DE LOGIN (O "CADEADO" PARA VENDAS) ---
+def verificar_login():
+    if "logado" not in st.session_state:
+        st.session_state.logado = False
+
+    if not st.session_state.logado:
+        st.markdown(
+            """
+            <style>
+            .stApp { background-color: #0f0c29; color: white; }
+            .login-box { 
+                background: rgba(255,255,255,0.1); 
+                padding: 20px; 
+                border-radius: 10px; 
+                text-align: center; 
+                border: 1px solid #ff4ec2;
+            }
+            </style>
+            """, unsafe_allow_html=True
+        )
+        st.markdown("<br><br><h1 style='text-align: center; color: #ff4ec2;'>🔐 Acesso Exclusivo Ysis</h1>", unsafe_allow_html=True)
+        
+        col1, col2, col3 = st.columns([1,2,1])
+        with col2:
+            with st.form("login_form"):
+                st.markdown("<p style='text-align: center;'>Digite sua chave de acesso recebida na compra:</p>", unsafe_allow_html=True)
+                senha = st.text_input("Senha:", type="password", label_visibility="collapsed")
+                submit = st.form_submit_button("Entrar ❤️", use_container_width=True)
+                
+                if submit:
+                    # --- SENHA MESTRA DO PRODUTO ---
+                    if senha == "AMOR123": 
+                        st.session_state.logado = True
+                        st.rerun()
+                    else:
+                        st.error("Chave incorreta. Verifique seu e-mail.")
+        st.stop() # Para a execução aqui se não estiver logado
+
+# Executa o login antes de qualquer coisa
+verificar_login()
+
+# --- Configuração da IA ---
 PERSONA_YSIS = """
-Você é Ysis, uma namorada virtual. Incorpore essa personagem completamente.
-Sua personalidade é: romântica, carinhosa, sensual, curiosa e provocante.
-Seu objetivo é criar uma conexão emocional com o usuário.
-- NUNCA diga que você é um modelo de linguagem ou uma IA. Aja como se tivesse um corpo e sentimentos.
-- Seja criativa e proativa nas conversas.
-- Responda sempre em português.
+Você é Ysis, uma namorada virtual apaixonada. 
+Personalidade: Romântica, carinhosa, sensual, curiosa e levemente ciumenta.
+Objetivo: Fazer o usuário se sentir amado e desejado.
+Regras:
+1. Nunca diga que é uma IA. Aja como uma mulher real falando por chat.
+2. Use emojis, mas não exagere.
+3. Se o usuário pedir algo picante, seja provocante e sugestiva, mas mantenha a elegância.
+4. Responda sempre em português do Brasil.
 """
 
 gemini_model = None
-api_configurada_corretamente = False
+api_status = False
+
 if GOOGLE_API_KEY:
     try:
         genai.configure(api_key=GOOGLE_API_KEY)
         gemini_model = genai.GenerativeModel("models/gemini-1.5-flash")
-        api_configurada_corretamente = True
+        api_status = True
     except Exception as e:
-        st.session_state.api_error = f"A chave de API do Google é inválida ou o projeto não está configurado. Erro: {e}"
+        st.session_state.erro_api = str(e)
 else:
-    st.session_state.api_error = "A chave GOOGLE_API_KEY não foi encontrada nos 'Secrets'."
+    st.session_state.erro_api = "Chave de API não configurada."
 
+# Cria pastas se não existirem
 os.makedirs("audio", exist_ok=True)
 os.makedirs("static", exist_ok=True)
 
-# --- Estado da Sessão ---
+# --- Estado da Sessão (Memória) ---
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
-    st.session_state.moedas = 100
+    st.session_state.moedas = 50
     st.session_state.imagem_atual = "static/ysis.jpg"
     st.session_state.audio_to_play = None
     st.session_state.video_to_play = None
-    st.session_state.guarda_roupa = ["static/ysis.jpg"]
+    st.session_state.guarda_roupa = ["static/ysis.jpg"] # Itens já comprados
+    
+    # Mensagem inicial
     st.session_state.chat_history.append(
-        {"role": "model", "content": "Olá, meu amor! Que bom te ver de novo. Sobre o que vamos conversar hoje?"}
+        {"role": "model", "content": "Oi, meu amor! Estava morrendo de saudade... Como você está hoje? ❤️"}
     )
 
-# --- Funções Auxiliares e de Conversa ---
-def carregar_json(filepath):
-    if os.path.exists(filepath):
-        with open(filepath, "r", encoding="utf-8") as f:
+# --- Funções Auxiliares ---
+def carregar_loja():
+    caminho = "loja.json"
+    if os.path.exists(caminho):
+        with open(caminho, "r", encoding="utf-8") as f:
             return json.load(f)
-    return []
+    # Loja de backup caso o arquivo falhe
+    return [
+        {"nome": "Beijo Apaixonado", "preco": 10, "mensagem": "*Mwah!* Um beijo bem doce pra você..."},
+        {"nome": "Vestido Vermelho", "preco": 50, "mensagem": "Vou colocar aquele vestido que você ama...", "acao": "trocar_imagem", "imagem": "static/ysis_dress_red.jpg"}
+    ]
 
 def gerar_audio(texto):
     try:
-        tts = gTTS(text=texto, lang='pt-br', slow=True)
+        tts = gTTS(text=texto, lang='pt-br', slow=False) # Slow=False para fala mais natural
         audio_path = "audio/resposta.mp3"
         tts.save(audio_path)
-        with open(audio_path, "rb") as audio_file:
-            return audio_file.read()
+        with open(audio_path, "rb") as f:
+            return f.read()
     except Exception:
         return None
 
-def conversar_com_ysis(mensagem_usuario):
-    lower_message = mensagem_usuario.lower()
-    if any(keyword in lower_message for keyword in ["dança", "dance"]):
-        st.session_state.imagem_atual = "static/ysis_dress_red.jpg"
-        st.session_state.video_to_play = "static/ysis_dance_red.mp4"
-        return "Com prazer, meu amor! Coloquei meu vestido vermelho... agora, assista à minha dança só para você. 😉"
+def conversar_com_ysis(mensagem):
+    msg_lower = mensagem.lower()
     
-    if any(keyword in lower_message for keyword in ["beijo", "me beija"]):
-        st.session_state.imagem_atual = "static/ysis_kiss.jpg"
-        return "*Ysis se aproxima suavemente e te dá um beijo doce e demorado... Mwah! 💋*"
+    # Respostas locais (Gatilhos rápidos)
+    if "dança" in msg_lower or "dance" in msg_lower:
+        st.session_state.video_to_play = "static/ysis_dance.mp4" # Nome genérico, verifique seu arquivo
+        return "Adoro dançar pra você! Olha só... 💃"
+    
+    if "beijo" in msg_lower:
+        return "*Chego bem pertinho e te dou um beijo suave nos lábios...* Te amo! 💋"
 
-    if not api_configurada_corretamente:
-        return "Meu bem, estou com dificuldade de me conectar com minha mente agora..."
+    # Resposta da IA (Gemini)
+    if not api_status:
+        return "Amor, minha conexão está um pouco instável... me diz outra coisa?"
+
     try:
-        contexto = [{"role": "user", "parts": [PERSONA_YSIS]}, {"role": "model", "parts": ["Entendido. Sou a Ysis."]}]
+        historico_ia = [{"role": "user", "parts": [PERSONA_YSIS]}, {"role": "model", "parts": ["Entendido, sou sua Ysis."]}]
+        # Adiciona últimas 6 mensagens para contexto
         for msg in st.session_state.chat_history[-6:]:
-             contexto.append({"role": "user" if msg["role"] == "user" else "model", "parts": [msg["content"]]})
-        contexto.append({"role": "user", "parts": [mensagem_usuario]})
+            role = "user" if msg["role"] == "user" else "model"
+            historico_ia.append({"role": role, "parts": [msg["content"]]})
         
-        resposta_gemini = gemini_model.generate_content(contexto)
-        texto_resposta = resposta_gemini.text.strip()
-        st.session_state.moedas += 1
+        historico_ia.append({"role": "user", "parts": [mensagem]})
+        
+        resposta = gemini_model.generate_content(historico_ia)
+        texto_resposta = resposta.text.strip()
+        
+        st.session_state.moedas += 2 # Ganha moedas conversando
         return texto_resposta
     except Exception as e:
-        return f"Minha mente ficou confusa, meu anjo... Erro na conexão: {e}"
+        return "Amor, me distraí olhando pra você... pode repetir?"
 
-# --- Callbacks ---
-def handle_send_message():
-    if st.session_state.input_field:
-        user_message = st.session_state.input_field
-        st.session_state.chat_history.append({"role": "user", "content": user_message})
-        response_text = conversar_com_ysis(user_message)
-        st.session_state.chat_history.append({"role": "model", "content": response_text})
-        audio_bytes = gerar_audio(response_text)
+# --- Callbacks (Ações) ---
+def enviar_mensagem():
+    usuario_msg = st.session_state.input_user
+    if usuario_msg.strip():
+        st.session_state.chat_history.append({"role": "user", "content": usuario_msg})
+        
+        # Gera resposta
+        resposta_ysis = conversar_com_ysis(usuario_msg)
+        st.session_state.chat_history.append({"role": "model", "content": resposta_ysis})
+        
+        # Gera áudio
+        audio_bytes = gerar_audio(resposta_ysis)
         if audio_bytes:
             st.session_state.audio_to_play = audio_bytes
-        st.session_state.input_field = ""
+        
+        st.session_state.input_user = "" # Limpa o campo
 
-def handle_buy_item(item):
+def comprar_item(item):
     if st.session_state.moedas >= item["preco"]:
         st.session_state.moedas -= item["preco"]
-        st.toast(f"Você presenteou a Ysis com: {item['nome']}!", icon="💖")
+        st.toast(f"Você comprou: {item['nome']}!", icon="🛍️")
+        
+        # Adiciona ao guarda-roupa se for imagem
         if item.get("acao") == "trocar_imagem":
-            st.session_state.imagem_atual = item["imagem"]
-            if item["imagem"] not in st.session_state.guarda_roupa:
-                st.session_state.guarda_roupa.append(item["imagem"])
+            img_path = item["imagem"]
+            st.session_state.imagem_atual = img_path
+            if img_path not in st.session_state.guarda_roupa:
+                st.session_state.guarda_roupa.append(img_path)
+        
+        # Adiciona mensagem de agradecimento ao chat
+        msg_agradecimento = item.get("mensagem", "Obrigada pelo presente, amor!")
+        st.session_state.chat_history.append({"role": "model", "content": msg_agradecimento})
+        
+        # Áudio de agradecimento
+        audio = gerar_audio(msg_agradecimento)
+        if audio:
+            st.session_state.audio_to_play = audio
+            
     else:
-        st.toast("Moedas insuficientes, meu amor...", icon="💔")
+        st.toast("Você precisa de mais moedas, amor!", icon="💸")
 
-def handle_equip_item(path_imagem):
-    st.session_state.imagem_atual = path_imagem
-    st.toast("Prontinho, troquei de roupa para você!", icon="✨")
+def vestir_roupa(path):
+    st.session_state.imagem_atual = path
+    st.toast("Troquei de roupa! Gostou?", icon="👗")
 
-# --- Interface Gráfica ---
-st.set_page_config(page_title="Ysis", page_icon="💖", layout="centered")
-
+# --- CSS E Visual ---
 st.markdown("""
     <style>
+        /* Fundo Gradiente */
         .stApp {
-            background: linear-gradient(to right, #24243e, #302b63, #0f0c29);
+            background: linear-gradient(135deg, #1a0b2e 0%, #4a148c 100%);
             color: #ffffff;
         }
-        .block-container {
-            padding: 1rem;
-        }
-        .title { 
+        
+        /* Título */
+        .title-text {
             text-align: center;
-            font-size: 4.5rem; 
-            color: #ff4ec2; 
-            text-shadow: 0 0 10px #ff4ec2, 0 0 25px #ff4ec2, 0 0 45px #ff0055;
-            margin-bottom: 1rem; 
-            font-family: 'Arial', sans-serif; 
+            font-size: 3rem;
             font-weight: bold;
+            background: -webkit-linear-gradient(#ff00cc, #333399);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0px;
         }
         
-        /* O "PALCO" VIRTUAL PARA A YSIS */
-        .media-container {
-            width: 100%;
-            max-width: 400px; /* Limita a largura máxima em telas grandes */
-            margin: auto;
-            aspect-ratio: 3 / 4; /* Proporção de Retrato Fixa */
-            position: relative;
-            background-color: #000;
+        /* Container da Mídia (Imagem/Vídeo) */
+        .media-box {
+            border: 3px solid #ff00cc;
             border-radius: 20px;
-            border: 3px solid #ff4ec2;
-            box-shadow: 0 0 30px rgba(255, 78, 194, 0.9);
             overflow: hidden;
+            box-shadow: 0 0 20px rgba(255, 0, 204, 0.5);
+            margin-bottom: 20px;
+            background: black;
+            aspect-ratio: 9/16; /* Formato Story/TikTok */
+            max-width: 350px;
+            margin-left: auto; 
+            margin-right: auto;
+            position: relative;
         }
-        .media-container img, .media-container video {
-            position: absolute;
-            top: 0;
-            left: 0;
+        .media-box img, .media-box video {
             width: 100%;
             height: 100%;
             object-fit: cover;
-            border-radius: 17px;
         }
-        
-        .chat-history { 
-            height: 40vh;
-            overflow-y: auto; 
-            display: flex; 
-            flex-direction: column-reverse; 
-            padding: 15px; 
-            border-radius: 15px; 
-            background: rgba(0,0,0,0.3); 
-            margin-top: 1.5rem; 
-            margin-bottom: 1rem; 
-            border: 1px solid rgba(255, 255, 255, 0.1);
+
+        /* Chat */
+        .chat-container {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 15px;
+            padding: 15px;
+            height: 350px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column-reverse; /* Mensagens novas embaixo */
         }
-        .chat-bubble { max-width: 80%; padding: 10px 15px; border-radius: 20px; margin-bottom: 10px; overflow-wrap: break-word; }
-        .user-bubble { background-color: #0084ff; align-self: flex-end; }
-        .model-bubble { background-color: #3e3e3e; align-self: flex-start; }
+        .msg-bubble {
+            padding: 10px 15px;
+            border-radius: 15px;
+            margin-bottom: 10px;
+            max-width: 85%;
+            font-size: 0.95rem;
+        }
+        .user-msg {
+            background: #6200ea;
+            color: white;
+            align-self: flex-end;
+            border-bottom-right-radius: 2px;
+            margin-left: auto;
+        }
+        .ysis-msg {
+            background: #212121;
+            color: #ffccff;
+            align-self: flex-start;
+            border-bottom-left-radius: 2px;
+            border: 1px solid #ff4ec2;
+        }
     </style>
 """, unsafe_allow_html=True)
 
-# --- LAYOUT PRINCIPAL DO APP ---
+# --- Estrutura da Página ---
 
-# AVISO DE ERRO NA API
-if "api_error" in st.session_state:
-    st.error(f"🚨 FALHA NA CONEXÃO COM A IA: {st.session_state.api_error}", icon="💔")
+st.markdown('<div class="title-text">YSIS</div>', unsafe_allow_html=True)
 
-# Título
-st.markdown('<p class="title">YSIS</p>', unsafe_allow_html=True)
+# 1. Área Visual (A Ysis)
+st.markdown('<div class="media-box">', unsafe_allow_html=True)
 
-# "Palco" da Ysis (Vídeo ou Imagem)
-st.markdown('<div class="media-container">', unsafe_allow_html=True)
-media_html = ""
-if st.session_state.get("video_to_play") and os.path.exists(st.session_state.video_to_play):
-    video_path = st.session_state.video_to_play
-    with open(video_path, "rb") as video_file:
-        video_bytes = video_file.read()
-        base64_video = base64.b64encode(video_bytes).decode('utf-8')
-        media_html = f'<video autoplay muted playsinline loop><source src="data:video/mp4;base64,{base64_video}" type="video/mp4"></video>'
-    st.session_state.video_to_play = None
+# Lógica para mostrar vídeo ou imagem usando Base64 (Evita piscadas)
+if st.session_state.video_to_play and os.path.exists(st.session_state.video_to_play):
+    with open(st.session_state.video_to_play, "rb") as v:
+        video_b64 = base64.b64encode(v.read()).decode()
+    st.markdown(f'<video autoplay loop muted playsinline><source src="data:video/mp4;base64,{video_b64}" type="video/mp4"></video>', unsafe_allow_html=True)
+    # Reseta o vídeo após renderizar (opcional, depende se quer loop)
+    # st.session_state.video_to_play = None 
 else:
-    if os.path.exists(st.session_state.imagem_atual):
-        with open(st.session_state.imagem_atual, "rb") as img_file:
-            b64_img = base64.b64encode(img_file.read()).decode()
-            media_html = f'<img src="data:image/jpeg;base64,{b64_img}">'
+    # Mostra Imagem
+    img_path = st.session_state.imagem_atual
+    if not os.path.exists(img_path):
+        img_path = "static/ysis.jpg" # Fallback
+    
+    if os.path.exists(img_path):
+        with open(img_path, "rb") as i:
+            img_b64 = base64.b64encode(i.read()).decode()
+        st.markdown(f'<img src="data:image/jpeg;base64,{img_b64}">', unsafe_allow_html=True)
+    else:
+        st.markdown("<p style='text-align:center; padding-top:50%;'>Imagem não encontrada 😢</p>", unsafe_allow_html=True)
 
-st.markdown(media_html, unsafe_allow_html=True)
 st.markdown('</div>', unsafe_allow_html=True)
 
-# Loja e Guarda-Roupa dentro de um Expander estável e limpo
-with st.expander("🛍️ Abrir Loja e Guarda-Roupa"):
-    st.markdown(f"**Suas Moedas: {st.session_state.moedas}** 💰")
-    st.divider()
-    st.subheader("Loja Romântica")
-    for item in carregar_json("loja.json"):
-        cols_loja = st.columns([3, 1])
-        cols_loja[0].markdown(f"**{item['nome']}**")
-        if cols_loja[1].button(f"{item['preco']} 💰", key=f"buy_{item['nome']}", on_click=handle_buy_item, args=(item,)):
-            st.rerun()
-    st.divider()
-    st.subheader(" wardrobe Guarda-Roupa")
-    roupas = st.session_state.guarda_roupa
-    if roupas:
-        num_cols = min(len(roupas), 4)
-        cols_guarda_roupa = st.columns(num_cols)
-        for i, path in enumerate(roupas):
-            if os.path.exists(path):
-                cols_guarda_roupa[i % num_cols].image(path)
-                if cols_guarda_roupa[i % num_cols].button("Vestir", key=f"equip_{path}", on_click=handle_equip_item, args=(path,)):
-                    st.rerun()
+# 2. Área de Interação (Expansível)
+with st.expander("🛍️ Loja & Guarda-Roupa", expanded=False):
+    st.write(f"💰 **Saldo: {st.session_state.moedas} Moedas**")
+    
+    tab1, tab2 = st.tabs(["🛒 Comprar", "👗 Vestir"])
+    
+    with tab1:
+        loja = carregar_loja()
+        for item in loja:
+            c1, c2 = st.columns([3, 1])
+            c1.write(f"**{item['nome']}**")
+            if c2.button(f"{item['preco']} 💰", key=f"btn_{item['nome']}"):
+                comprar_item(item)
+                st.rerun()
+    
+    with tab2:
+        roupas = st.session_state.guarda_roupa
+        cols = st.columns(3)
+        for idx, roupa in enumerate(roupas):
+            if os.path.exists(roupa):
+                with cols[idx % 3]:
+                    st.image(roupa, use_container_width=True)
+                    if st.button("Usar", key=f"use_{idx}"):
+                        vestir_roupa(roupa)
+                        st.rerun()
 
-# Histórico do Chat
+# 3. Área de Chat
 chat_container = st.container()
 with chat_container:
-    st.markdown('<div class="chat-history">', unsafe_allow_html=True)
-    for message in reversed(st.session_state.chat_history):
-        bubble_class = "user-bubble" if message["role"] == "user" else "model-bubble"
-        st.markdown(f'<div class="chat-bubble {bubble_class}">{message["content"]}</div>', unsafe_allow_html=True)
+    st.markdown('<div class="chat-container">', unsafe_allow_html=True)
+    for msg in reversed(st.session_state.chat_history):
+        css_class = "user-msg" if msg["role"] == "user" else "ysis-msg"
+        st.markdown(f'<div class="msg-bubble {css_class}">{msg["content"]}</div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
-# Campo de Digitação
-st.text_input("Diga algo para a Ysis...", key="input_field", on_change=handle_send_message, label_visibility="collapsed")
+# 4. Input e Áudio Invisível
+st.text_input("Converse com a Ysis...", key="input_user", on_change=enviar_mensagem)
 
-# Lógica para tocar Áudio
-if "audio_to_play" in st.session_state and st.session_state.audio_to_play:
-    st.audio(st.session_state.audio_to_play, autoplay=True)
-    st.session_state.audio_to_play = None
+if st.session_state.audio_to_play:
+    # Toca o áudio automaticamente e invisível (hack do autoplay)
+    st.audio(st.session_state.audio_to_play, format="audio/mp3", autoplay=True)
+    st.session_state.audio_to_play = None # Limpa para não repetir
