@@ -12,6 +12,8 @@ st.set_page_config(page_title="Ysis - Sua Namorada Virtual", page_icon="💖", l
 try:
     import google.generativeai as genai
     from gtts import gTTS
+    # NOVO: Biblioteca para remoção de emojis
+    import emoji
 except ImportError as e:
     # Este erro só aparece se o requirements.txt estiver incompleto
     st.error(f"Erro de ambiente: A biblioteca '{e.name}' não foi encontrada. **VERIFIQUE SEU requirements.txt**.")
@@ -75,7 +77,7 @@ st.session_state.erro_api = None
 if GOOGLE_API_KEY:
     try:
         genai.configure(api_key=GOOGLE_API_KEY)
-        # CORREÇÃO DA IA: Tentativa com o modelo mais atualizado e canônico
+        # Manter o modelo gemini-2.5-flash que funcionou
         gemini_model = genai.GenerativeModel("gemini-2.5-flash") 
         api_status = True
     except Exception as e:
@@ -117,8 +119,11 @@ def carregar_loja():
 
 def gerar_audio(texto):
     try:
+        # NOVO: Remove todos os emojis do texto antes de gerar o áudio
+        texto_limpo = emoji.replace_emoji(texto, replace='') 
+        
         # slow=False torna a fala mais natural
-        tts = gTTS(text=texto, lang='pt-br', slow=False) 
+        tts = gTTS(text=texto_limpo, lang='pt-br', slow=False) 
         audio_path = "audio/resposta.mp3"
         tts.save(audio_path)
         with open(audio_path, "rb") as f:
@@ -296,7 +301,6 @@ with st.expander("🛍️ Loja & Guarda-Roupa", expanded=False):
             if os.path.exists(roupa):
                 with cols[idx % 3]:
                     st.image(roupa, use_container_width=True)
-                    # CORREÇÃO DO NAMERROR: 'ropa' mudado para 'roupa'
                     if st.button("Usar", key=f"use_{idx}", on_click=vestir_roupa_acao, args=(roupa,)):
                         st.rerun()
 
