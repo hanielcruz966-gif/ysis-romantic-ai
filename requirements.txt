@@ -1,5 +1,5 @@
 streamlit
-google-genai==0.16.0
+google-genai
 gtts
 python-dotenv
 emoji
