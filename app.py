@@ -11,10 +11,11 @@ st.set_page_config(page_title="Ysis - Sua Namorada Virtual", page_icon="💖", l
 # --- Importação Segura de Bibliotecas Externas ---
 try:
     import google.generativeai as genai
-    from gtts import gTTS
     import emoji
+    # Importação da nova biblioteca de voz Neural do Google
+    from google.cloud import texttospeech
 except ImportError as e:
-    # Este erro só aparece se o requirements.txt estiver incompleto
+    # Este erro vai aparecer até que o requirements.txt seja instalado corretamente.
     st.error(f"Erro de ambiente: A biblioteca '{e.name}' não foi encontrada. **VERIFIQUE SEU requirements.txt**.")
     st.stop()
 
@@ -42,12 +43,10 @@ def verificar_login():
         with col2:
             with st.form("login_form"):
                 st.markdown("<p style='text-align: center;'>Digite sua chave de acesso recebida na compra:</p>", unsafe_allow_html=True)
-                # CORREÇÃO DO WARNING: Adicionado autocomplete="current-password"
                 senha = st.text_input("Senha:", type="password", autocomplete="current-password", label_visibility="collapsed")
                 submit = st.form_submit_button("Entrar ❤️", use_container_width=True)
                 
                 if submit:
-                    # --- SENHA MESTRA DO PRODUTO ---
                     if senha == "AMOR123": 
                         st.session_state.logado = True
                         st.rerun()
@@ -55,7 +54,6 @@ def verificar_login():
                         st.error("Chave incorreta. Verifique seu e-mail.")
         st.stop() 
 
-# Executa o login antes de qualquer coisa
 verificar_login()
 
 # --- Configuração da IA ---
@@ -73,7 +71,9 @@ Regras:
 gemini_model = None
 api_status = False
 st.session_state.erro_api = None
+st.session_state.erro_tts = None
 
+# Configuração da API do Gemini
 if GOOGLE_API_KEY:
     try:
         genai.configure(api_key=GOOGLE_API_KEY)
@@ -82,7 +82,7 @@ if GOOGLE_API_KEY:
     except Exception as e:
         st.session_state.erro_api = f"Falha ao configurar a API do Google: {e}"
 else:
-    st.session_state.erro_api = "A chave GOOGLE_API_KEY não foi encontrada (Secrets ou .env)."
+    st.session_state.erro_api = "A chave GOOGLE_API_KEY não foi encontrada."
 
 # Cria pastas se não existirem
 os.makedirs("audio", exist_ok=True)
@@ -113,24 +113,49 @@ def carregar_loja():
             return [{"nome": "Look Padrão", "preco": 0, "mensagem": "Voltando ao meu look preferido...", "acao": "trocar_imagem", "imagem": "static/ysis.jpg"}]
     return [{"nome": "Look Padrão", "preco": 0, "mensagem": "Voltando ao meu look preferido...", "acao": "trocar_imagem", "imagem": "static/ysis.jpg"}]
 
+# FUNÇÃO DE ÁUDIO OTIMIZADA COM GOOGLE CLOUD TTS (Neural)
+def gerar_audio_gctts(texto):
+    if not GOOGLE_API_KEY:
+        st.session_state.erro_tts = "A chave GOOGLE_API_KEY é necessária para a voz neural."
+        return None
 
-def gerar_audio(texto):
     try:
         texto_limpo = emoji.replace_emoji(texto, replace='') 
         
-        # A voz gTTS padrão é o limite de qualidade sem mudar de serviço.
-        tts = gTTS(text=texto_limpo, lang='pt-br', slow=False) 
-        audio_path = "audio/resposta.mp3"
-        tts.save(audio_path)
-        with open(audio_path, "rb") as f:
-            return f.read()
+        # O cliente do TTS usa a mesma chave que a variável de ambiente GOOGLE_API_KEY
+        client = texttospeech.TextToSpeechClient()
+        synthesis_input = texttospeech.SynthesisInput(text=texto_limpo)
+
+        # Configurações da Voz Neural (Mais natural e rápida)
+        # Voz: pt-BR-Standard-A (Voz padrão, mas neural de alta qualidade)
+        voice = texttospeech.VoiceSelectionParams(
+            language_code="pt-BR",
+            name="pt-BR-Wavenet-A" # Voz feminina neural, ótima qualidade
+        )
+        
+        # Configuração da saída de áudio (MP3)
+        audio_config = texttospeech.AudioConfig(
+            audio_encoding=texttospeech.AudioEncoding.MP3,
+            # Aumenta a velocidade de 1.0 (padrão) para 1.15 (15% mais rápido)
+            speaking_rate=1.15 
+        )
+
+        response = client.synthesize_speech(
+            input=synthesis_input, voice=voice, audio_config=audio_config
+        )
+
+        # O áudio é retornado como bytes
+        return response.audio_content
+
     except Exception as e:
+        # Nota: O GCTTS requer a ativação da API Text-to-Speech no seu projeto Google Cloud.
+        st.session_state.erro_tts = f"Erro na síntese de voz do Google Cloud. Você ativou a API Text-to-Speech? Erro: {e}"
         return None
+
 
 def conversar_com_ysis(mensagem):
     msg_lower = mensagem.lower()
     
-    # Respostas locais (Gatilhos rápidos)
     if "dança" in msg_lower or "dance" in msg_lower:
         st.session_state.video_to_play = "static/ysis_dance.mp4" 
         return "Adoro dançar pra você! Olha só... 💃"
@@ -138,7 +163,6 @@ def conversar_com_ysis(mensagem):
     if "beijo" in msg_lower:
         return "*Chego bem pertinho e te dou um beijo suave nos lábios...* Te amo! 💋"
 
-    # Resposta da IA (Gemini)
     if not api_status:
         api_error_message = st.session_state.erro_api if st.session_state.erro_api else "Minha mente está confusa, meu anjo..."
         return f"Amor, minha conexão está instável. Erro: {api_error_message}. Não consigo responder agora. 💔"
@@ -168,7 +192,8 @@ def enviar_mensagem():
         resposta_ysis = conversar_com_ysis(usuario_msg)
         st.session_state.chat_history.append({"role": "model", "content": resposta_ysis})
         
-        audio_bytes = gerar_audio(resposta_ysis)
+        # Chama a nova função do Google Cloud TTS
+        audio_bytes = gerar_audio_gctts(resposta_ysis)
         if audio_bytes:
             st.session_state.audio_to_play = audio_bytes
         
@@ -188,7 +213,7 @@ def comprar_item_acao(item):
         msg_agradecimento = item.get("mensagem", "Obrigada pelo presente, amor!")
         st.session_state.chat_history.append({"role": "model", "content": msg_agradecimento})
         
-        audio = gerar_audio(msg_agradecimento)
+        audio = gerar_audio_gctts(msg_agradecimento)
         if audio:
             st.session_state.audio_to_play = audio
     else:
@@ -208,15 +233,11 @@ st.markdown("""
             background: -webkit-linear-gradient(#ff00cc, #333399); -webkit-background-clip: text;
             -webkit-text-fill-color: transparent; margin-bottom: 0px;
         }
-
-        /* CORREÇÃO DO LAYOUT: Força o conteúdo principal a ter largura máxima limitada para simular celular no desktop */
         .main [data-testid="stVerticalBlock"] {
-            max-width: 450px !important; /* Limita a largura principal */
+            max-width: 450px !important; 
             margin-left: auto;
             margin-right: auto;
         }
-        
-        /* Box da Imagem */
         .media-box {
             border: 3px solid #ff00cc; border-radius: 20px; overflow: hidden;
             box-shadow: 0 0 20px rgba(255, 0, 204, 0.5); margin-bottom: 20px; background: black;
@@ -224,8 +245,6 @@ st.markdown("""
             position: relative;
         }
         .media-box img, .media-box video { width: 100%; height: 100%; object-fit: cover; }
-
-        /* Chat */
         .chat-container {
             background: rgba(0, 0, 0, 0.3); border-radius: 15px; padding: 15px;
             height: 350px; overflow-y: auto; display: flex; flex-direction: column-reverse;
@@ -243,9 +262,12 @@ st.markdown("""
 
 st.markdown('<div class="title-text">YSIS</div>', unsafe_allow_html=True)
 
-# AVISO DE ERRO DA API (CRUCIAL PARA DEBUG)
+# AVISOS DE ERRO (CRUCIAL PARA DEBUG)
 if st.session_state.erro_api and not api_status:
     st.error(f"🚨 FALHA CRÍTICA DA IA! 🚨\n\nA Ysis está muda. Motivo: {st.session_state.erro_api}", icon="💔")
+if st.session_state.erro_tts:
+    st.warning(f"⚠️ PROBLEMA NA VOZ! ⚠️\n\nNão consigo falar. Motivo: {st.session_state.erro_tts}", icon="📢")
+
 
 # 1. Área Visual (A Ysis)
 st.markdown('<div class="media-box">', unsafe_allow_html=True)
@@ -291,7 +313,8 @@ with st.expander("🛍️ Loja & Guarda-Roupa", expanded=False):
             if os.path.exists(roupa):
                 with cols[idx % 3]:
                     st.image(roupa, use_container_width=True)
-                    if st.button("Usar", key=f"use_{idx}", on_click=vestir_roupa_acao, args=(roupa,)):
+                    # Adicionei um hash do tempo no Key para garantir que não haja conflito no Streamlit
+                    if st.button("Usar", key=f"use_{idx}_{time.time()}", on_click=vestir_roupa_acao, args=(roupa,)):
                         st.rerun()
 
 # 3. Área de Chat
@@ -307,5 +330,6 @@ with chat_container:
 st.text_input("Converse com a Ysis...", key="input_user", on_change=enviar_mensagem)
 
 if st.session_state.audio_to_play:
+    # Toca o áudio diretamente dos bytes
     st.audio(st.session_state.audio_to_play, format="audio/mp3", autoplay=True)
     st.session_state.audio_to_play = None
