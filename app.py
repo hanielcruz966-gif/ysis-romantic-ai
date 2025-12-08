@@ -121,25 +121,16 @@ def gerar_audio(texto):
         # Remove todos os emojis do texto (para o chat)
         texto_limpo = emoji.replace_emoji(texto, replace='') 
         
-        # CORREÇÃO: Usando SSML para customizar a taxa de fala e o tom
-        # A tag <prosody> fará a voz parecer mais aguda e mais rápida (menos robótica).
-        ssml_text = f'<speak><prosody rate="medium" pitch="high">{texto_limpo}</prosody></speak>'
-
-        tts = gTTS(text=ssml_text, lang='pt-br', slow=False) 
+        # Versão mais simples e estável do gTTS para garantir que não haja leitura de tags
+        # slow=False garante a velocidade mais rápida possível sem SSML
+        tts = gTTS(text=texto_limpo, lang='pt-br', slow=False) 
         audio_path = "audio/resposta.mp3"
         tts.save(audio_path)
         with open(audio_path, "rb") as f:
             return f.read()
     except Exception as e:
-        # Se houver um erro no SSML, tenta a versão simples
-        try:
-            tts = gTTS(text=texto_limpo, lang='pt-br', slow=False)
-            audio_path = "audio/resposta.mp3"
-            tts.save(audio_path)
-            with open(audio_path, "rb") as f:
-                return f.read()
-        except Exception:
-            return None
+        # Fallback de erro
+        return None
 
 def conversar_com_ysis(mensagem):
     msg_lower = mensagem.lower()
@@ -187,6 +178,7 @@ def enviar_mensagem():
         resposta_ysis = conversar_com_ysis(usuario_msg)
         st.session_state.chat_history.append({"role": "model", "content": resposta_ysis})
         
+        # GERA ÁUDIO SOMENTE APÓS O USUÁRIO INTERAGIR
         audio_bytes = gerar_audio(resposta_ysis)
         if audio_bytes:
             st.session_state.audio_to_play = audio_bytes
