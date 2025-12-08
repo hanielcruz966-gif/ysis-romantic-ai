@@ -75,9 +75,7 @@ st.session_state.erro_api = None
 if GOOGLE_API_KEY:
     try:
         genai.configure(api_key=GOOGLE_API_KEY)
-        # CORREÇÃO CRÍTICA AQUI: Trocando para o nome de modelo recomendado pela biblioteca
-        # Se gemini-pro falhar, a chave pode estar restrita a modelos 1.0. 
-        # Vamos tentar o nome oficial:
+        # CORREÇÃO DA IA: Tentativa com o modelo mais atualizado e canônico
         gemini_model = genai.GenerativeModel("gemini-2.5-flash") 
         api_status = True
     except Exception as e:
@@ -163,7 +161,6 @@ def conversar_com_ysis(mensagem):
         return texto_resposta
     except Exception as e:
         # Fallback de erro interno da requisição (ex: chave expirada ou cota)
-        # O novo código de erro da IA será exibido aqui
         return f"Minha mente ficou confusa, meu anjo... Aconteceu algo estranho: {e}"
 
 # --- Callbacks (Ações) ---
@@ -299,7 +296,8 @@ with st.expander("🛍️ Loja & Guarda-Roupa", expanded=False):
             if os.path.exists(roupa):
                 with cols[idx % 3]:
                     st.image(roupa, use_container_width=True)
-                    if st.button("Usar", key=f"use_{idx}", on_click=vestir_roupa_acao, args=(ropa,)):
+                    # CORREÇÃO DO NAMERROR: 'ropa' mudado para 'roupa'
+                    if st.button("Usar", key=f"use_{idx}", on_click=vestir_roupa_acao, args=(roupa,)):
                         st.rerun()
 
 # 3. Área de Chat
