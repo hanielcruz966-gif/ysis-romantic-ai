@@ -13,11 +13,13 @@ try:
     import google.generativeai as genai
     from gtts import gTTS
 except ImportError as e:
-    st.error(f"Erro de ambiente: A biblioteca '{e.name}' não foi encontrada. Verifique o requirements.txt.")
+    # Este erro só aparece se o requirements.txt estiver incompleto
+    st.error(f"Erro de ambiente: A biblioteca '{e.name}' não foi encontrada. **VERIFIQUE SEU requirements.txt**.")
     st.stop()
 
 # --- Carregar Variáveis de Ambiente ---
-load_dotenv() # Para teste local
+# Para rodar no Streamlit Cloud, certifique-se que python-dotenv está no requirements.txt
+load_dotenv() 
 # Tenta pegar dos Secrets (Nuvem) ou do .env (Local)
 GOOGLE_API_KEY = st.secrets.get("GOOGLE_API_KEY") or os.getenv("GOOGLE_API_KEY")
 
@@ -31,13 +33,6 @@ def verificar_login():
             """
             <style>
             .stApp { background-color: #0f0c29; color: white; }
-            .login-box { 
-                background: rgba(255,255,255,0.1); 
-                padding: 20px; 
-                border-radius: 10px; 
-                text-align: center; 
-                border: 1px solid #ff4ec2;
-            }
             </style>
             """, unsafe_allow_html=True
         )
@@ -57,7 +52,7 @@ def verificar_login():
                         st.rerun()
                     else:
                         st.error("Chave incorreta. Verifique seu e-mail.")
-        st.stop() # Para a execução aqui se não estiver logado
+        st.stop() 
 
 # Executa o login antes de qualquer coisa
 verificar_login()
@@ -76,6 +71,7 @@ Regras:
 
 gemini_model = None
 api_status = False
+st.session_state.erro_api = None # Inicializa o erro da API
 
 if GOOGLE_API_KEY:
     try:
@@ -83,9 +79,9 @@ if GOOGLE_API_KEY:
         gemini_model = genai.GenerativeModel("models/gemini-1.5-flash")
         api_status = True
     except Exception as e:
-        st.session_state.erro_api = str(e)
+        st.session_state.erro_api = f"Falha ao configurar a API do Google: {e}"
 else:
-    st.session_state.erro_api = "Chave de API não configurada."
+    st.session_state.erro_api = "A chave GOOGLE_API_KEY não foi encontrada (Secrets ou .env)."
 
 # Cria pastas se não existirem
 os.makedirs("audio", exist_ok=True)
@@ -100,7 +96,6 @@ if "chat_history" not in st.session_state:
     st.session_state.video_to_play = None
     st.session_state.guarda_roupa = ["static/ysis.jpg"] # Itens já comprados
     
-    # Mensagem inicial
     st.session_state.chat_history.append(
         {"role": "model", "content": "Oi, meu amor! Estava morrendo de saudade... Como você está hoje? ❤️"}
     )
@@ -111,15 +106,12 @@ def carregar_loja():
     if os.path.exists(caminho):
         with open(caminho, "r", encoding="utf-8") as f:
             return json.load(f)
-    # Loja de backup caso o arquivo falhe
-    return [
-        {"nome": "Beijo Apaixonado", "preco": 10, "mensagem": "*Mwah!* Um beijo bem doce pra você..."},
-        {"nome": "Vestido Vermelho", "preco": 50, "mensagem": "Vou colocar aquele vestido que você ama...", "acao": "trocar_imagem", "imagem": "static/ysis_dress_red.jpg"}
-    ]
+    # Loja de backup
+    return [{"nome": "Look Padrão", "preco": 0, "mensagem": "Voltando ao meu look preferido...", "acao": "trocar_imagem", "imagem": "static/ysis.jpg"}]
 
 def gerar_audio(texto):
     try:
-        tts = gTTS(text=texto, lang='pt-br', slow=False) # Slow=False para fala mais natural
+        tts = gTTS(text=texto, lang='pt-br', slow=False) 
         audio_path = "audio/resposta.mp3"
         tts.save(audio_path)
         with open(audio_path, "rb") as f:
@@ -132,7 +124,7 @@ def conversar_com_ysis(mensagem):
     
     # Respostas locais (Gatilhos rápidos)
     if "dança" in msg_lower or "dance" in msg_lower:
-        st.session_state.video_to_play = "static/ysis_dance.mp4" # Nome genérico, verifique seu arquivo
+        st.session_state.video_to_play = "static/ysis_dance.mp4" 
         return "Adoro dançar pra você! Olha só... 💃"
     
     if "beijo" in msg_lower:
@@ -144,7 +136,6 @@ def conversar_com_ysis(mensagem):
 
     try:
         historico_ia = [{"role": "user", "parts": [PERSONA_YSIS]}, {"role": "model", "parts": ["Entendido, sou sua Ysis."]}]
-        # Adiciona últimas 6 mensagens para contexto
         for msg in st.session_state.chat_history[-6:]:
             role = "user" if msg["role"] == "user" else "model"
             historico_ia.append({"role": role, "parts": [msg["content"]]})
@@ -154,10 +145,10 @@ def conversar_com_ysis(mensagem):
         resposta = gemini_model.generate_content(historico_ia)
         texto_resposta = resposta.text.strip()
         
-        st.session_state.moedas += 2 # Ganha moedas conversando
+        st.session_state.moedas += 2
         return texto_resposta
     except Exception as e:
-        return "Amor, me distraí olhando pra você... pode repetir?"
+        return f"Minha mente ficou confusa, meu anjo... Erro: {e}"
 
 # --- Callbacks (Ações) ---
 def enviar_mensagem():
@@ -165,116 +156,66 @@ def enviar_mensagem():
     if usuario_msg.strip():
         st.session_state.chat_history.append({"role": "user", "content": usuario_msg})
         
-        # Gera resposta
         resposta_ysis = conversar_com_ysis(usuario_msg)
         st.session_state.chat_history.append({"role": "model", "content": resposta_ysis})
         
-        # Gera áudio
         audio_bytes = gerar_audio(resposta_ysis)
         if audio_bytes:
             st.session_state.audio_to_play = audio_bytes
         
-        st.session_state.input_user = "" # Limpa o campo
+        st.session_state.input_user = "" 
 
-def comprar_item(item):
+def comprar_item_acao(item):
     if st.session_state.moedas >= item["preco"]:
         st.session_state.moedas -= item["preco"]
         st.toast(f"Você comprou: {item['nome']}!", icon="🛍️")
         
-        # Adiciona ao guarda-roupa se for imagem
         if item.get("acao") == "trocar_imagem":
             img_path = item["imagem"]
             st.session_state.imagem_atual = img_path
             if img_path not in st.session_state.guarda_roupa:
                 st.session_state.guarda_roupa.append(img_path)
         
-        # Adiciona mensagem de agradecimento ao chat
         msg_agradecimento = item.get("mensagem", "Obrigada pelo presente, amor!")
         st.session_state.chat_history.append({"role": "model", "content": msg_agradecimento})
         
-        # Áudio de agradecimento
         audio = gerar_audio(msg_agradecimento)
         if audio:
             st.session_state.audio_to_play = audio
-            
     else:
         st.toast("Você precisa de mais moedas, amor!", icon="💸")
 
-def vestir_roupa(path):
+def vestir_roupa_acao(path):
     st.session_state.imagem_atual = path
     st.toast("Troquei de roupa! Gostou?", icon="👗")
 
 # --- CSS E Visual ---
 st.markdown("""
     <style>
-        /* Fundo Gradiente */
-        .stApp {
-            background: linear-gradient(135deg, #1a0b2e 0%, #4a148c 100%);
-            color: #ffffff;
-        }
-        
-        /* Título */
+        .stApp { background: linear-gradient(135deg, #1a0b2e 0%, #4a148c 100%); color: #ffffff; }
         .title-text {
-            text-align: center;
-            font-size: 3rem;
-            font-weight: bold;
-            background: -webkit-linear-gradient(#ff00cc, #333399);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            margin-bottom: 0px;
+            text-align: center; font-size: 3rem; font-weight: bold;
+            background: -webkit-linear-gradient(#ff00cc, #333399); -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent; margin-bottom: 0px;
         }
-        
-        /* Container da Mídia (Imagem/Vídeo) */
         .media-box {
-            border: 3px solid #ff00cc;
-            border-radius: 20px;
-            overflow: hidden;
-            box-shadow: 0 0 20px rgba(255, 0, 204, 0.5);
-            margin-bottom: 20px;
-            background: black;
-            aspect-ratio: 9/16; /* Formato Story/TikTok */
-            max-width: 350px;
-            margin-left: auto; 
-            margin-right: auto;
+            border: 3px solid #ff00cc; border-radius: 20px; overflow: hidden;
+            box-shadow: 0 0 20px rgba(255, 0, 204, 0.5); margin-bottom: 20px; background: black;
+            aspect-ratio: 9/16; max-width: 350px; margin-left: auto; margin-right: auto;
             position: relative;
         }
-        .media-box img, .media-box video {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
+        .media-box img, .media-box video { width: 100%; height: 100%; object-fit: cover; }
 
-        /* Chat */
         .chat-container {
-            background: rgba(0, 0, 0, 0.3);
-            border-radius: 15px;
-            padding: 15px;
-            height: 350px;
-            overflow-y: auto;
-            display: flex;
-            flex-direction: column-reverse; /* Mensagens novas embaixo */
+            background: rgba(0, 0, 0, 0.3); border-radius: 15px; padding: 15px;
+            height: 350px; overflow-y: auto; display: flex; flex-direction: column-reverse;
         }
         .msg-bubble {
-            padding: 10px 15px;
-            border-radius: 15px;
-            margin-bottom: 10px;
-            max-width: 85%;
-            font-size: 0.95rem;
+            padding: 10px 15px; border-radius: 15px; margin-bottom: 10px;
+            max-width: 85%; font-size: 0.95rem;
         }
-        .user-msg {
-            background: #6200ea;
-            color: white;
-            align-self: flex-end;
-            border-bottom-right-radius: 2px;
-            margin-left: auto;
-        }
-        .ysis-msg {
-            background: #212121;
-            color: #ffccff;
-            align-self: flex-start;
-            border-bottom-left-radius: 2px;
-            border: 1px solid #ff4ec2;
-        }
+        .user-msg { background: #6200ea; color: white; align-self: flex-end; border-bottom-right-radius: 2px; margin-left: auto; }
+        .ysis-msg { background: #212121; color: #ffccff; align-self: flex-start; border-bottom-left-radius: 2px; border: 1px solid #ff4ec2; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -282,21 +223,23 @@ st.markdown("""
 
 st.markdown('<div class="title-text">YSIS</div>', unsafe_allow_html=True)
 
+# AVISO DE ERRO DA API (CORREÇÃO CRUCIAL)
+if st.session_state.erro_api:
+    st.error(f"🚨 FALHA CRÍTICA DA IA! 🚨\n\nA Ysis está muda. Motivo: {st.session_state.erro_api}", icon="💔")
+
 # 1. Área Visual (A Ysis)
 st.markdown('<div class="media-box">', unsafe_allow_html=True)
 
-# Lógica para mostrar vídeo ou imagem usando Base64 (Evita piscadas)
 if st.session_state.video_to_play and os.path.exists(st.session_state.video_to_play):
     with open(st.session_state.video_to_play, "rb") as v:
         video_b64 = base64.b64encode(v.read()).decode()
     st.markdown(f'<video autoplay loop muted playsinline><source src="data:video/mp4;base64,{video_b64}" type="video/mp4"></video>', unsafe_allow_html=True)
-    # Reseta o vídeo após renderizar (opcional, depende se quer loop)
-    # st.session_state.video_to_play = None 
+    # st.session_state.video_to_play = None # Se quiser que o vídeo rode apenas uma vez
+
 else:
-    # Mostra Imagem
     img_path = st.session_state.imagem_atual
     if not os.path.exists(img_path):
-        img_path = "static/ysis.jpg" # Fallback
+        img_path = "static/ysis.jpg" 
     
     if os.path.exists(img_path):
         with open(img_path, "rb") as i:
@@ -313,14 +256,15 @@ with st.expander("🛍️ Loja & Guarda-Roupa", expanded=False):
     
     tab1, tab2 = st.tabs(["🛒 Comprar", "👗 Vestir"])
     
+    loja = carregar_loja()
+    
     with tab1:
-        loja = carregar_loja()
         for item in loja:
             c1, c2 = st.columns([3, 1])
             c1.write(f"**{item['nome']}**")
-            if c2.button(f"{item['preco']} 💰", key=f"btn_{item['nome']}"):
-                comprar_item(item)
-                st.rerun()
+            if c2.button(f"{item['preco']} 💰", key=f"btn_{item['nome']}", on_click=comprar_item_acao, args=(item,)):
+                # Chamada do rerun APÓS o callback para atualizar o estado
+                st.rerun() 
     
     with tab2:
         roupas = st.session_state.guarda_roupa
@@ -329,8 +273,7 @@ with st.expander("🛍️ Loja & Guarda-Roupa", expanded=False):
             if os.path.exists(roupa):
                 with cols[idx % 3]:
                     st.image(roupa, use_container_width=True)
-                    if st.button("Usar", key=f"use_{idx}"):
-                        vestir_roupa(roupa)
+                    if st.button("Usar", key=f"use_{idx}", on_click=vestir_roupa_acao, args=(roupa,)):
                         st.rerun()
 
 # 3. Área de Chat
@@ -346,6 +289,5 @@ with chat_container:
 st.text_input("Converse com a Ysis...", key="input_user", on_change=enviar_mensagem)
 
 if st.session_state.audio_to_play:
-    # Toca o áudio automaticamente e invisível (hack do autoplay)
     st.audio(st.session_state.audio_to_play, format="audio/mp3", autoplay=True)
-    st.session_state.audio_to_play = None # Limpa para não repetir
+    st.session_state.audio_to_play = None
