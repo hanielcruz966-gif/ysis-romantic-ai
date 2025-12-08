@@ -72,6 +72,7 @@ st.session_state.erro_tts = None
 if GOOGLE_API_KEY:
     try:
         genai.configure(api_key=GOOGLE_API_KEY)
+        # O modelo 2.5-flash é mais confiável que o 1.5-flash no Streamlit Cloud
         gemini_model = genai.GenerativeModel("gemini-2.5-flash") 
         api_status = True
     except Exception as e:
@@ -127,7 +128,9 @@ def gerar_audio(texto):
 def conversar_com_ysis(mensagem):
     msg_lower = mensagem.lower()
     
+    # Lógica para Mídia
     if "dança" in msg_lower or "dance" in msg_lower:
+        # Certifique-se de que este caminho (static/ysis_dance.mp4) existe no seu repositório
         st.session_state.video_to_play = "static/ysis_dance.mp4" 
         return "Adoro dançar pra você! Olha só... 💃"
     
@@ -135,11 +138,13 @@ def conversar_com_ysis(mensagem):
         st.session_state.video_to_play = None 
         return "*Chego bem pertinho e te dou um beijo suave nos lábios...* Te amo! 💋"
 
+    # Lógica da API
     if not api_status:
         api_error_message = st.session_state.erro_api if st.session_state.erro_api else "Minha mente está confusa, meu anjo..."
         return f"Amor, minha conexão está instável. Erro: {api_error_message}. Não consigo responder agora. 💔"
 
     try:
+        # Usamos o histórico para manter o contexto
         historico_ia = [{"role": "user", "parts": [PERSONA_YSIS]}, {"role": "model", "parts": ["Entendido, sou sua Ysis."]}]
         for msg in st.session_state.chat_history[-6:]:
             role = "user" if msg["role"] == "user" else "model"
@@ -215,7 +220,7 @@ st.markdown("""
             margin-right: auto;
         }
         .media-box {
-            /* Remove a injeção do HTML do media-box, usamos um container Streamlit */
+            /* Usamos apenas para definir o estilo e a proporção */
             border: 3px solid #ff00cc; border-radius: 20px; overflow: hidden;
             box-shadow: 0 0 20px rgba(255, 0, 204, 0.5); margin-bottom: 20px; background: black;
             aspect-ratio: 9/16; max-width: 350px; margin-left: auto; margin-right: auto;
@@ -283,7 +288,8 @@ with st.expander("🛍️ Loja & Guarda-Roupa", expanded=False):
         for item in loja:
             c1, c2 = st.columns([3, 1])
             c1.write(f"**{item['nome']}**")
-            if c2.button(f"{item['preco']} 💰", key=f"btn_{item['nome']}", on_click=comprar_item_acao, args=(item,)):
+            # Usando nome e preço para garantir chave única do botão
+            if c2.button(f"{item['preco']} 💰", key=f"buy_{item['nome']}_{item['preco']}", on_click=comprar_item_acao, args=(item,)):
                 st.rerun() 
     
     with tab2:
@@ -294,8 +300,9 @@ with st.expander("🛍️ Loja & Guarda-Roupa", expanded=False):
                 with cols[idx % 3]:
                     # Usando st.image diretamente
                     st.image(roupa, use_container_width=True)
+                    # Usando time.time() para garantir chave única para o botão de "Usar"
                     if st.button("Usar", key=f"use_{idx}_{time.time()}", on_click=vestir_roupa_acao, args=(roupa,)):
-                        pass # A ação está no callback
+                        pass 
 
 # 3. Área de Chat
 chat_container = st.container()
