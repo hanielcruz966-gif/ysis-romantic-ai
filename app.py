@@ -9,7 +9,8 @@ st.set_page_config(page_title="Ysis - Sua Namorada Virtual", page_icon="💖", l
 
 # --- Importação Segura de Bibliotecas Externas ---
 try:
-    import google.generativeai as genai
+    # ALTERAÇÃO CRÍTICA: Mudando de 'google.generativeai' para 'google.genai'
+    import google.genai as genai 
     import emoji
     from gtts import gTTS
 except ImportError as e:
@@ -299,7 +300,7 @@ with st.expander("🛍️ Loja & Guarda-Roupa", expanded=False):
             if os.path.exists(roupa):
                 with cols[idx % 3]:
                     # Usando st.image diretamente
-                    st.image(roupa, use_container_width=True)
+                    st.image(ropa, use_container_width=True)
                     # Usando time.time() para garantir chave única para o botão de "Usar"
                     if st.button("Usar", key=f"use_{idx}_{time.time()}", on_click=vestir_roupa_acao, args=(roupa,)):
                         pass 
