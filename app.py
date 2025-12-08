@@ -32,7 +32,7 @@ def verificar_login():
         st.markdown(
             """
             <style>
-            .stApp { background-color: #0f0c29; color: white; }
+            .stApp { background: linear-gradient(135deg, #1a0b2e 0%, #4a148c 100%); color: white; }
             </style>
             """, unsafe_allow_html=True
         )
@@ -42,7 +42,8 @@ def verificar_login():
         with col2:
             with st.form("login_form"):
                 st.markdown("<p style='text-align: center;'>Digite sua chave de acesso recebida na compra:</p>", unsafe_allow_html=True)
-                senha = st.text_input("Senha:", type="password", label_visibility="collapsed")
+                # CORREÇÃO DO WARNING: Adicionado autocomplete="current-password"
+                senha = st.text_input("Senha:", type="password", autocomplete="current-password", label_visibility="collapsed")
                 submit = st.form_submit_button("Entrar ❤️", use_container_width=True)
                 
                 if submit:
@@ -76,14 +77,11 @@ st.session_state.erro_api = None
 if GOOGLE_API_KEY:
     try:
         genai.configure(api_key=GOOGLE_API_KEY)
-        # Manter o modelo gemini-2.5-flash que funcionou
         gemini_model = genai.GenerativeModel("gemini-2.5-flash") 
         api_status = True
     except Exception as e:
-        # Captura erro de configuração da chave
         st.session_state.erro_api = f"Falha ao configurar a API do Google: {e}"
 else:
-    # Captura erro de chave não encontrada
     st.session_state.erro_api = "A chave GOOGLE_API_KEY não foi encontrada (Secrets ou .env)."
 
 # Cria pastas se não existirem
@@ -118,25 +116,21 @@ def carregar_loja():
 
 def gerar_audio(texto):
     try:
-        # Remove todos os emojis do texto (para o chat)
         texto_limpo = emoji.replace_emoji(texto, replace='') 
         
-        # Versão mais simples e estável do gTTS para garantir que não haja leitura de tags
-        # slow=False garante a velocidade mais rápida possível sem SSML
+        # A voz gTTS padrão é o limite de qualidade sem mudar de serviço.
         tts = gTTS(text=texto_limpo, lang='pt-br', slow=False) 
         audio_path = "audio/resposta.mp3"
         tts.save(audio_path)
         with open(audio_path, "rb") as f:
             return f.read()
     except Exception as e:
-        # Fallback de erro
         return None
 
 def conversar_com_ysis(mensagem):
     msg_lower = mensagem.lower()
     
     # Respostas locais (Gatilhos rápidos)
-    # Apenas se o seu vídeo de dança estiver em static/ysis_dance.mp4
     if "dança" in msg_lower or "dance" in msg_lower:
         st.session_state.video_to_play = "static/ysis_dance.mp4" 
         return "Adoro dançar pra você! Olha só... 💃"
@@ -146,14 +140,11 @@ def conversar_com_ysis(mensagem):
 
     # Resposta da IA (Gemini)
     if not api_status:
-        # Retorna a mensagem de erro da API para diagnóstico
         api_error_message = st.session_state.erro_api if st.session_state.erro_api else "Minha mente está confusa, meu anjo..."
         return f"Amor, minha conexão está instável. Erro: {api_error_message}. Não consigo responder agora. 💔"
 
     try:
-        # Configura o histórico de chat com a Persona
         historico_ia = [{"role": "user", "parts": [PERSONA_YSIS]}, {"role": "model", "parts": ["Entendido, sou sua Ysis."]}]
-        # Adiciona últimas 6 mensagens para manter o contexto
         for msg in st.session_state.chat_history[-6:]:
             role = "user" if msg["role"] == "user" else "model"
             historico_ia.append({"role": role, "parts": [msg["content"]]})
@@ -163,10 +154,9 @@ def conversar_com_ysis(mensagem):
         resposta = gemini_model.generate_content(historico_ia)
         texto_resposta = resposta.text.strip()
         
-        st.session_state.moedas += 2 # Recompensa por interação
+        st.session_state.moedas += 2
         return texto_resposta
     except Exception as e:
-        # Fallback de erro interno da requisição (ex: chave expirada ou cota)
         return f"Minha mente ficou confusa, meu anjo... Aconteceu algo estranho: {e}"
 
 # --- Callbacks (Ações) ---
@@ -178,7 +168,6 @@ def enviar_mensagem():
         resposta_ysis = conversar_com_ysis(usuario_msg)
         st.session_state.chat_history.append({"role": "model", "content": resposta_ysis})
         
-        # GERA ÁUDIO SOMENTE APÓS O USUÁRIO INTERAGIR
         audio_bytes = gerar_audio(resposta_ysis)
         if audio_bytes:
             st.session_state.audio_to_play = audio_bytes
@@ -292,7 +281,6 @@ with st.expander("🛍️ Loja & Guarda-Roupa", expanded=False):
         for item in loja:
             c1, c2 = st.columns([3, 1])
             c1.write(f"**{item['nome']}**")
-            # Usando on_click com rerun para garantir que a interface atualize
             if c2.button(f"{item['preco']} 💰", key=f"btn_{item['nome']}", on_click=comprar_item_acao, args=(item,)):
                 st.rerun() 
     
@@ -310,7 +298,6 @@ with st.expander("🛍️ Loja & Guarda-Roupa", expanded=False):
 chat_container = st.container()
 with chat_container:
     st.markdown('<div class="chat-container">', unsafe_allow_html=True)
-    # Exibe as mensagens na ordem correta (de baixo para cima)
     for msg in reversed(st.session_state.chat_history): 
         css_class = "user-msg" if msg["role"] == "user" else "ysis-msg"
         st.markdown(f'<div class="msg-bubble {css_class}">{msg["content"]}</div>', unsafe_allow_html=True)
@@ -320,6 +307,5 @@ with chat_container:
 st.text_input("Converse com a Ysis...", key="input_user", on_change=enviar_mensagem)
 
 if st.session_state.audio_to_play:
-    # Toca o áudio automaticamente e invisível
     st.audio(st.session_state.audio_to_play, format="audio/mp3", autoplay=True)
     st.session_state.audio_to_play = None
