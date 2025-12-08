@@ -6,6 +6,7 @@ import time
 from dotenv import load_dotenv
 
 # --- Configuração da Página (Deve ser o primeiro comando Streamlit) ---
+# Mantemos 'centered' para simular melhor um aplicativo móvel.
 st.set_page_config(page_title="Ysis - Sua Namorada Virtual", page_icon="💖", layout="centered")
 
 # --- Importação Segura de Bibliotecas Externas ---
@@ -75,8 +76,8 @@ st.session_state.erro_api = None
 if GOOGLE_API_KEY:
     try:
         genai.configure(api_key=GOOGLE_API_KEY)
-        # O modelo gemini-1.5-flash é a melhor opção para este tipo de chat
-        gemini_model = genai.GenerativeModel("models/gemini-1.5-flash")
+        # CORREÇÃO CRÍTICA AQUI: Trocando 1.5-flash pelo gemini-pro (mais estável)
+        gemini_model = genai.GenerativeModel("gemini-pro") 
         api_status = True
     except Exception as e:
         # Captura erro de configuração da chave
@@ -161,6 +162,7 @@ def conversar_com_ysis(mensagem):
         return texto_resposta
     except Exception as e:
         # Fallback de erro interno da requisição (ex: chave expirada ou cota)
+        # O novo código de erro da IA será exibido aqui
         return f"Minha mente ficou confusa, meu anjo... Aconteceu algo estranho: {e}"
 
 # --- Callbacks (Ações) ---
