@@ -6,6 +6,7 @@ import time
 from dotenv import load_dotenv
 
 # --- Configuração da Página (Deve ser o primeiro comando Streamlit) ---
+# A linha st.set_page_config deve ser a primeira chamada Streamlit
 st.set_page_config(page_title="Ysis - Sua Namorada Virtual", page_icon="💖", layout="centered")
 
 # --- Importação Segura de Bibliotecas Externas ---
@@ -14,12 +15,12 @@ try:
     import emoji
     from gtts import gTTS
 except ImportError as e:
+    # Se a instalação falhar novamente, mostre este erro.
     st.error(f"Erro de ambiente: A biblioteca '{e.name}' não foi encontrada. **VERIFIQUE SEU requirements.txt**.")
     st.stop()
 
 # --- Carregar Variáveis de Ambiente ---
 load_dotenv() 
-# Tenta pegar dos Secrets (Nuvem) ou do .env (Local)
 GOOGLE_API_KEY = st.secrets.get("GOOGLE_API_KEY") or os.getenv("GOOGLE_API_KEY")
 
 # --- SISTEMA DE LOGIN ---
@@ -75,7 +76,7 @@ st.session_state.erro_tts = None
 if GOOGLE_API_KEY:
     try:
         genai.configure(api_key=GOOGLE_API_KEY)
-        # CORREÇÃO CRÍTICA: Trocando para o modelo estável "gemini-2.5-flash"
+        # MODELO CORRIGIDO para gemini-2.5-flash (resolve o 404 not found)
         gemini_model = genai.GenerativeModel("gemini-2.5-flash") 
         api_status = True
     except Exception as e:
@@ -95,6 +96,7 @@ if "chat_history" not in st.session_state:
     st.session_state.audio_to_play = None
     st.session_state.video_to_play = None
     st.session_state.guarda_roupa = ["static/ysis.jpg"] 
+    st.session_state.video_reproduced = False # Novo flag para controlar a reprodução do vídeo
     
     st.session_state.chat_history.append(
         {"role": "model", "content": "Oi, meu amor! Estava morrendo de saudade... Como você está hoje? ❤️"}
@@ -108,21 +110,17 @@ def carregar_loja():
             with open(caminho, "r", encoding="utf-8") as f:
                 return json.load(f)
         except json.JSONDecodeError:
-            st.error("Erro ao ler loja.json. Verifique a sintaxe JSON.")
             return [{"nome": "Look Padrão", "preco": 0, "mensagem": "Voltando ao meu look preferido...", "acao": "trocar_imagem", "imagem": "static/ysis.jpg"}]
     return [{"nome": "Look Padrão", "preco": 0, "mensagem": "Voltando ao meu look preferido...", "acao": "trocar_imagem", "imagem": "static/ysis.jpg"}]
 
 # FUNÇÃO DE ÁUDIO SIMPLES (GTTS)
 def gerar_audio(texto):
     try:
-        # Remove emojis para evitar erros no TTS
         texto_limpo = emoji.replace_emoji(texto, replace='') 
-        
-        # Gera o áudio com a gTTS (voz robótica, mas funcional)
         tts = gTTS(text=texto_limpo, lang='pt', slow=False)
         audio_filename = "audio/resposta.mp3"
         
-        # Salva o arquivo temporariamente e lê os bytes
+        # Salva o arquivo temporariamente (necessário para o Streamlit ler)
         tts.save(audio_filename)
         
         with open(audio_filename, "rb") as f:
@@ -132,15 +130,14 @@ def gerar_audio(texto):
         st.session_state.erro_tts = f"Erro na síntese de voz (gTTS): {e}"
         return None
 
-
 def conversar_com_ysis(mensagem):
+    # Ações de vídeo/beijo
     msg_lower = mensagem.lower()
-    
     if "dança" in msg_lower or "dance" in msg_lower:
         st.session_state.video_to_play = "static/ysis_dance.mp4" 
         return "Adoro dançar pra você! Olha só... 💃"
-    
     if "beijo" in msg_lower:
+        st.session_state.video_to_play = None # Zera o video
         return "*Chego bem pertinho e te dou um beijo suave nos lábios...* Te amo! 💋"
 
     if not api_status:
@@ -148,6 +145,7 @@ def conversar_com_ysis(mensagem):
         return f"Amor, minha conexão está instável. Erro: {api_error_message}. Não consigo responder agora. 💔"
 
     try:
+        # Configura histórico (mantendo a persona no topo)
         historico_ia = [{"role": "user", "parts": [PERSONA_YSIS]}, {"role": "model", "parts": ["Entendido, sou sua Ysis."]}]
         for msg in st.session_state.chat_history[-6:]:
             role = "user" if msg["role"] == "user" else "model"
@@ -178,6 +176,7 @@ def enviar_mensagem():
             st.session_state.audio_to_play = audio_bytes
         
         st.session_state.input_user = "" 
+        st.session_state.video_reproduced = False # Reseta o flag do vídeo após a resposta
 
 def comprar_item_acao(item):
     if st.session_state.moedas >= item["preco"]:
@@ -225,6 +224,15 @@ st.markdown("""
             position: relative;
         }
         .media-box img, .media-box video { width: 100%; height: 100%; object-fit: cover; }
+        /* Garante que o input e o botão fiquem na parte de baixo da tela */
+        .stChatInput {
+            position: sticky;
+            bottom: 0;
+            z-index: 999;
+            background: rgba(26, 11, 46, 0.95); /* Fundo semi-transparente para o input */
+            padding-top: 10px;
+            padding-bottom: 10px;
+        }
         .chat-container {
             background: rgba(0, 0, 0, 0.3); border-radius: 15px; padding: 15px;
             height: 350px; overflow-y: auto; display: flex; flex-direction: column-reverse;
@@ -248,15 +256,14 @@ if st.session_state.erro_api and not api_status:
 if st.session_state.erro_tts:
     st.warning(f"⚠️ PROBLEMA NA VOZ! ⚠️\n\nNão consigo falar. Motivo: {st.session_state.erro_tts}", icon="📢")
 
-
 # 1. Área Visual (A Ysis)
 st.markdown('<div class="media-box">', unsafe_allow_html=True)
 
+# Lógica para mostrar Vídeo ou Imagem
 if st.session_state.video_to_play and os.path.exists(st.session_state.video_to_play):
-    with open(st.session_state.video_to_play, "rb") as v:
-        video_b64 = base64.b64encode(v.read()).decode()
-    st.markdown(f'<video autoplay loop muted playsinline><source src="data:video/mp4;base64,{video_b64}" type="video/mp4"></video>', unsafe_allow_html=True)
-
+    # CORREÇÃO DOM/JS: Usamos o elemento padrão do Streamlit para o vídeo para evitar injeção HTML complexa
+    st.video(st.session_state.video_to_play, format="video/mp4", start_time=0, autoplay=True, loop=True)
+    # st.session_state.video_to_play = None # Não zera aqui, pois a imagem de baixo não apareceria
 else:
     img_path = st.session_state.imagem_atual
     if not os.path.exists(img_path):
@@ -265,7 +272,8 @@ else:
     if os.path.exists(img_path):
         with open(img_path, "rb") as i:
             img_b64 = base64.b64encode(i.read()).decode()
-        st.markdown(f'<img src="data:image/jpeg;base64,{img_b64}">', unsafe_allow_html=True)
+        # O Image of the Ysis na pose atual
+        st.markdown(f'<img src="data:image/jpeg;base64,{img_b64}" alt="Ysis - Namorada Virtual">', unsafe_allow_html=True)
     else:
         st.markdown("<p style='text-align:center; padding-top:50%;'>Imagem não encontrada 😢</p>", unsafe_allow_html=True)
 
@@ -283,6 +291,7 @@ with st.expander("🛍️ Loja & Guarda-Roupa", expanded=False):
         for item in loja:
             c1, c2 = st.columns([3, 1])
             c1.write(f"**{item['nome']}**")
+            # Adiciona o key=f"btn_{item['nome']}" para evitar NameError
             if c2.button(f"{item['preco']} 💰", key=f"btn_{item['nome']}", on_click=comprar_item_acao, args=(item,)):
                 st.rerun() 
     
@@ -293,23 +302,27 @@ with st.expander("🛍️ Loja & Guarda-Roupa", expanded=False):
             if os.path.exists(roupa):
                 with cols[idx % 3]:
                     st.image(roupa, use_container_width=True)
-                    # Adicionei um hash do tempo no Key para garantir que não haja conflito no Streamlit
+                    # CORREÇÃO NameError: Adiciona o hash do tempo no Key para garantir que não haja conflito
                     if st.button("Usar", key=f"use_{idx}_{time.time()}", on_click=vestir_roupa_acao, args=(roupa,)):
                         st.rerun()
 
 # 3. Área de Chat
 chat_container = st.container()
 with chat_container:
-    st.markdown('<div class="chat-container">', unsafe_allow_html=True)
+    # Utilizamos o ID do elemento para fixar a rolagem
+    st.markdown('<div class="chat-container" id="chat-scroller">', unsafe_allow_html=True)
     for msg in reversed(st.session_state.chat_history): 
         css_class = "user-msg" if msg["role"] == "user" else "ysis-msg"
         st.markdown(f'<div class="msg-bubble {css_class}">{msg["content"]}</div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
 # 4. Input e Áudio Invisível
+# Coloque o input no final para garantir que esteja sempre visível
 st.text_input("Converse com a Ysis...", key="input_user", on_change=enviar_mensagem)
 
+# Áudio (Toca SOMENTE se houver um áudio novo)
 if st.session_state.audio_to_play:
-    # Toca o áudio diretamente dos bytes
+    # Autoplay deve estar ligado, mas Streamlit trata a reprodução de forma segura
     st.audio(st.session_state.audio_to_play, format="audio/mp3", autoplay=True)
+    # Zera o áudio para que não tente tocar novamente no próximo ciclo
     st.session_state.audio_to_play = None
