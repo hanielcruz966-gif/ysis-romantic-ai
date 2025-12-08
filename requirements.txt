@@ -2,4 +2,4 @@ streamlit
 google-genai
 gtts
 python-dotenv
-emoji # NOVO REQUISITO
+emoji
