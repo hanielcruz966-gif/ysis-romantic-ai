@@ -18,7 +18,6 @@ except ImportError as e:
     st.stop()
 
 # --- Carregar Variáveis de Ambiente ---
-# Para rodar no Streamlit Cloud, certifique-se que python-dotenv está no requirements.txt
 load_dotenv() 
 # Tenta pegar dos Secrets (Nuvem) ou do .env (Local)
 GOOGLE_API_KEY = st.secrets.get("GOOGLE_API_KEY") or os.getenv("GOOGLE_API_KEY")
@@ -71,7 +70,7 @@ Regras:
 
 gemini_model = None
 api_status = False
-st.session_state.erro_api = None # Inicializa o erro da API
+st.session_state.erro_api = None
 
 if GOOGLE_API_KEY:
     try:
@@ -94,7 +93,7 @@ if "chat_history" not in st.session_state:
     st.session_state.imagem_atual = "static/ysis.jpg"
     st.session_state.audio_to_play = None
     st.session_state.video_to_play = None
-    st.session_state.guarda_roupa = ["static/ysis.jpg"] # Itens já comprados
+    st.session_state.guarda_roupa = ["static/ysis.jpg"] 
     
     st.session_state.chat_history.append(
         {"role": "model", "content": "Oi, meu amor! Estava morrendo de saudade... Como você está hoje? ❤️"}
@@ -104,10 +103,14 @@ if "chat_history" not in st.session_state:
 def carregar_loja():
     caminho = "loja.json"
     if os.path.exists(caminho):
-        with open(caminho, "r", encoding="utf-8") as f:
-            return json.load(f)
-    # Loja de backup
+        try:
+            with open(caminho, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except json.JSONDecodeError:
+            st.error("Erro ao ler loja.json. Verifique a sintaxe JSON.")
+            return [{"nome": "Look Padrão", "preco": 0, "mensagem": "Voltando ao meu look preferido...", "acao": "trocar_imagem", "imagem": "static/ysis.jpg"}]
     return [{"nome": "Look Padrão", "preco": 0, "mensagem": "Voltando ao meu look preferido...", "acao": "trocar_imagem", "imagem": "static/ysis.jpg"}]
+
 
 def gerar_audio(texto):
     try:
@@ -124,6 +127,7 @@ def conversar_com_ysis(mensagem):
     
     # Respostas locais (Gatilhos rápidos)
     if "dança" in msg_lower or "dance" in msg_lower:
+        # Certifique-se de que o arquivo ysis_dance.mp4 existe em static/
         st.session_state.video_to_play = "static/ysis_dance.mp4" 
         return "Adoro dançar pra você! Olha só... 💃"
     
@@ -132,7 +136,9 @@ def conversar_com_ysis(mensagem):
 
     # Resposta da IA (Gemini)
     if not api_status:
-        return "Amor, minha conexão está um pouco instável... me diz outra coisa?"
+        # Usa a mensagem de erro visível na página como resposta, para depuração
+        api_error_message = st.session_state.erro_api if st.session_state.erro_api else "Minha mente está confusa, meu anjo..."
+        return f"Amor, minha conexão está instável. Erro: {api_error_message}. Verifique sua chave de API."
 
     try:
         historico_ia = [{"role": "user", "parts": [PERSONA_YSIS]}, {"role": "model", "parts": ["Entendido, sou sua Ysis."]}]
@@ -148,7 +154,8 @@ def conversar_com_ysis(mensagem):
         st.session_state.moedas += 2
         return texto_resposta
     except Exception as e:
-        return f"Minha mente ficou confusa, meu anjo... Erro: {e}"
+        # Fallback de erro interno da requisição (ex: chave expirada ou cota)
+        return f"Minha mente ficou confusa, meu anjo... Erro na requisição: {e}"
 
 # --- Callbacks (Ações) ---
 def enviar_mensagem():
@@ -223,8 +230,8 @@ st.markdown("""
 
 st.markdown('<div class="title-text">YSIS</div>', unsafe_allow_html=True)
 
-# AVISO DE ERRO DA API (CORREÇÃO CRUCIAL)
-if st.session_state.erro_api:
+# AVISO DE ERRO DA API
+if st.session_state.erro_api and not api_status:
     st.error(f"🚨 FALHA CRÍTICA DA IA! 🚨\n\nA Ysis está muda. Motivo: {st.session_state.erro_api}", icon="💔")
 
 # 1. Área Visual (A Ysis)
@@ -263,7 +270,6 @@ with st.expander("🛍️ Loja & Guarda-Roupa", expanded=False):
             c1, c2 = st.columns([3, 1])
             c1.write(f"**{item['nome']}**")
             if c2.button(f"{item['preco']} 💰", key=f"btn_{item['nome']}", on_click=comprar_item_acao, args=(item,)):
-                # Chamada do rerun APÓS o callback para atualizar o estado
                 st.rerun() 
     
     with tab2:
@@ -280,7 +286,8 @@ with st.expander("🛍️ Loja & Guarda-Roupa", expanded=False):
 chat_container = st.container()
 with chat_container:
     st.markdown('<div class="chat-container">', unsafe_allow_html=True)
-    for msg in reversed(st.session_state.chat_history):
+    # Exibe as mensagens na ordem correta (de baixo para cima)
+    for msg in reversed(st.session_state.chat_history): 
         css_class = "user-msg" if msg["role"] == "user" else "ysis-msg"
         st.markdown(f'<div class="msg-bubble {css_class}">{msg["content"]}</div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
