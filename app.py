@@ -12,7 +12,6 @@ st.set_page_config(page_title="Ysis - Sua Namorada Virtual", page_icon="💖", l
 try:
     import google.generativeai as genai
     from gtts import gTTS
-    # NOVO: Biblioteca para remoção de emojis
     import emoji
 except ImportError as e:
     # Este erro só aparece se o requirements.txt estiver incompleto
@@ -119,17 +118,28 @@ def carregar_loja():
 
 def gerar_audio(texto):
     try:
-        # NOVO: Remove todos os emojis do texto antes de gerar o áudio
+        # Remove todos os emojis do texto (para o chat)
         texto_limpo = emoji.replace_emoji(texto, replace='') 
         
-        # slow=False torna a fala mais natural
-        tts = gTTS(text=texto_limpo, lang='pt-br', slow=False) 
+        # CORREÇÃO: Usando SSML para customizar a taxa de fala e o tom
+        # A tag <prosody> fará a voz parecer mais aguda e mais rápida (menos robótica).
+        ssml_text = f'<speak><prosody rate="medium" pitch="high">{texto_limpo}</prosody></speak>'
+
+        tts = gTTS(text=ssml_text, lang='pt-br', slow=False) 
         audio_path = "audio/resposta.mp3"
         tts.save(audio_path)
         with open(audio_path, "rb") as f:
             return f.read()
-    except Exception:
-        return None
+    except Exception as e:
+        # Se houver um erro no SSML, tenta a versão simples
+        try:
+            tts = gTTS(text=texto_limpo, lang='pt-br', slow=False)
+            audio_path = "audio/resposta.mp3"
+            tts.save(audio_path)
+            with open(audio_path, "rb") as f:
+                return f.read()
+        except Exception:
+            return None
 
 def conversar_com_ysis(mensagem):
     msg_lower = mensagem.lower()
