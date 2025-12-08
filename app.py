@@ -12,10 +12,8 @@ st.set_page_config(page_title="Ysis - Sua Namorada Virtual", page_icon="💖", l
 try:
     import google.generativeai as genai
     import emoji
-    # Importação da nova biblioteca de voz Neural do Google
-    from google.cloud import texttospeech
+    from gtts import gTTS
 except ImportError as e:
-    # Este erro vai aparecer até que o requirements.txt seja instalado corretamente.
     st.error(f"Erro de ambiente: A biblioteca '{e.name}' não foi encontrada. **VERIFIQUE SEU requirements.txt**.")
     st.stop()
 
@@ -24,7 +22,7 @@ load_dotenv()
 # Tenta pegar dos Secrets (Nuvem) ou do .env (Local)
 GOOGLE_API_KEY = st.secrets.get("GOOGLE_API_KEY") or os.getenv("GOOGLE_API_KEY")
 
-# --- SISTEMA DE LOGIN (O "CADEADO" PARA VENDAS) ---
+# --- SISTEMA DE LOGIN ---
 def verificar_login():
     if "logado" not in st.session_state:
         st.session_state.logado = False
@@ -77,6 +75,7 @@ st.session_state.erro_tts = None
 if GOOGLE_API_KEY:
     try:
         genai.configure(api_key=GOOGLE_API_KEY)
+        # CORREÇÃO CRÍTICA: Trocando para o modelo estável "gemini-2.5-flash"
         gemini_model = genai.GenerativeModel("gemini-2.5-flash") 
         api_status = True
     except Exception as e:
@@ -113,43 +112,24 @@ def carregar_loja():
             return [{"nome": "Look Padrão", "preco": 0, "mensagem": "Voltando ao meu look preferido...", "acao": "trocar_imagem", "imagem": "static/ysis.jpg"}]
     return [{"nome": "Look Padrão", "preco": 0, "mensagem": "Voltando ao meu look preferido...", "acao": "trocar_imagem", "imagem": "static/ysis.jpg"}]
 
-# FUNÇÃO DE ÁUDIO OTIMIZADA COM GOOGLE CLOUD TTS (Neural)
-def gerar_audio_gctts(texto):
-    if not GOOGLE_API_KEY:
-        st.session_state.erro_tts = "A chave GOOGLE_API_KEY é necessária para a voz neural."
-        return None
-
+# FUNÇÃO DE ÁUDIO SIMPLES (GTTS)
+def gerar_audio(texto):
     try:
+        # Remove emojis para evitar erros no TTS
         texto_limpo = emoji.replace_emoji(texto, replace='') 
         
-        # O cliente do TTS usa a mesma chave que a variável de ambiente GOOGLE_API_KEY
-        client = texttospeech.TextToSpeechClient()
-        synthesis_input = texttospeech.SynthesisInput(text=texto_limpo)
-
-        # Configurações da Voz Neural (Mais natural e rápida)
-        # Voz: pt-BR-Standard-A (Voz padrão, mas neural de alta qualidade)
-        voice = texttospeech.VoiceSelectionParams(
-            language_code="pt-BR",
-            name="pt-BR-Wavenet-A" # Voz feminina neural, ótima qualidade
-        )
+        # Gera o áudio com a gTTS (voz robótica, mas funcional)
+        tts = gTTS(text=texto_limpo, lang='pt', slow=False)
+        audio_filename = "audio/resposta.mp3"
         
-        # Configuração da saída de áudio (MP3)
-        audio_config = texttospeech.AudioConfig(
-            audio_encoding=texttospeech.AudioEncoding.MP3,
-            # Aumenta a velocidade de 1.0 (padrão) para 1.15 (15% mais rápido)
-            speaking_rate=1.15 
-        )
-
-        response = client.synthesize_speech(
-            input=synthesis_input, voice=voice, audio_config=audio_config
-        )
-
-        # O áudio é retornado como bytes
-        return response.audio_content
-
+        # Salva o arquivo temporariamente e lê os bytes
+        tts.save(audio_filename)
+        
+        with open(audio_filename, "rb") as f:
+            return f.read()
+            
     except Exception as e:
-        # Nota: O GCTTS requer a ativação da API Text-to-Speech no seu projeto Google Cloud.
-        st.session_state.erro_tts = f"Erro na síntese de voz do Google Cloud. Você ativou a API Text-to-Speech? Erro: {e}"
+        st.session_state.erro_tts = f"Erro na síntese de voz (gTTS): {e}"
         return None
 
 
@@ -192,8 +172,8 @@ def enviar_mensagem():
         resposta_ysis = conversar_com_ysis(usuario_msg)
         st.session_state.chat_history.append({"role": "model", "content": resposta_ysis})
         
-        # Chama a nova função do Google Cloud TTS
-        audio_bytes = gerar_audio_gctts(resposta_ysis)
+        # Chama a função de áudio gTTS
+        audio_bytes = gerar_audio(resposta_ysis)
         if audio_bytes:
             st.session_state.audio_to_play = audio_bytes
         
@@ -213,7 +193,7 @@ def comprar_item_acao(item):
         msg_agradecimento = item.get("mensagem", "Obrigada pelo presente, amor!")
         st.session_state.chat_history.append({"role": "model", "content": msg_agradecimento})
         
-        audio = gerar_audio_gctts(msg_agradecimento)
+        audio = gerar_audio(msg_agradecimento)
         if audio:
             st.session_state.audio_to_play = audio
     else:
