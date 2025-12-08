@@ -9,7 +9,7 @@ st.set_page_config(page_title="Ysis - Sua Namorada Virtual", page_icon="💖", l
 
 # --- Importação Segura de Bibliotecas Externas ---
 try:
-    # ALTERAÇÃO CRÍTICA: Mudando de 'google.generativeai' para 'google.genai'
+    # CORREÇÃO DA IMPORTAÇÃO (de 'google.generativeai' para 'google.genai')
     import google.genai as genai 
     import emoji
     from gtts import gTTS
@@ -72,9 +72,13 @@ st.session_state.erro_tts = None
 
 if GOOGLE_API_KEY:
     try:
-        genai.configure(api_key=GOOGLE_API_KEY)
-        # O modelo 2.5-flash é mais confiável que o 1.5-flash no Streamlit Cloud
-        gemini_model = genai.GenerativeModel("gemini-2.5-flash") 
+        # CORREÇÃO DA API: Removido genai.configure() e chave passada diretamente
+        # genai.configure(api_key=GOOGLE_API_KEY) # Removido
+        
+        gemini_model = genai.GenerativeModel(
+            "gemini-2.5-flash", 
+            api_key=GOOGLE_API_KEY # Chave de API passada diretamente
+        ) 
         api_status = True
     except Exception as e:
         st.session_state.erro_api = f"Falha ao configurar a API do Google: {e}"
@@ -299,8 +303,8 @@ with st.expander("🛍️ Loja & Guarda-Roupa", expanded=False):
         for idx, roupa in enumerate(roupas):
             if os.path.exists(roupa):
                 with cols[idx % 3]:
-                    # Usando st.image diretamente
-                    st.image(ropa, use_container_width=True)
+                    # CORREÇÃO DE DIGITAÇÃO: 'ropa' -> 'roupa'
+                    st.image(roupa, use_container_width=True) 
                     # Usando time.time() para garantir chave única para o botão de "Usar"
                     if st.button("Usar", key=f"use_{idx}_{time.time()}", on_click=vestir_roupa_acao, args=(roupa,)):
                         pass 
