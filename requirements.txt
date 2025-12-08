@@ -1,5 +1,5 @@
-streamlit>=1.33.0
-google-generativeai
+streamlit
+google-genai
 gtts
-pillow
 python-dotenv
+emoji # NOVO REQUISITO
