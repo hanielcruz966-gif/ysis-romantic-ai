@@ -3,3 +3,6 @@ google-genai==0.16.0
 gtts
 python-dotenv
 emoji
+# Adicionando dependências internas do Streamlit para estabilizar o build
+rich==13.7.1 
+pygments==2.17.2
