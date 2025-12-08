@@ -6,7 +6,6 @@ import time
 from dotenv import load_dotenv
 
 # --- Configuração da Página (Deve ser o primeiro comando Streamlit) ---
-# Mantemos 'centered' para simular melhor um aplicativo móvel.
 st.set_page_config(page_title="Ysis - Sua Namorada Virtual", page_icon="💖", layout="centered")
 
 # --- Importação Segura de Bibliotecas Externas ---
@@ -76,8 +75,10 @@ st.session_state.erro_api = None
 if GOOGLE_API_KEY:
     try:
         genai.configure(api_key=GOOGLE_API_KEY)
-        # CORREÇÃO CRÍTICA AQUI: Trocando 1.5-flash pelo gemini-pro (mais estável)
-        gemini_model = genai.GenerativeModel("gemini-pro") 
+        # CORREÇÃO CRÍTICA AQUI: Trocando para o nome de modelo recomendado pela biblioteca
+        # Se gemini-pro falhar, a chave pode estar restrita a modelos 1.0. 
+        # Vamos tentar o nome oficial:
+        gemini_model = genai.GenerativeModel("gemini-2.5-flash") 
         api_status = True
     except Exception as e:
         # Captura erro de configuração da chave
@@ -207,12 +208,22 @@ def vestir_roupa_acao(path):
 # --- CSS E Visual ---
 st.markdown("""
     <style>
+        /* Fundo e cores */
         .stApp { background: linear-gradient(135deg, #1a0b2e 0%, #4a148c 100%); color: #ffffff; }
         .title-text {
             text-align: center; font-size: 3rem; font-weight: bold;
             background: -webkit-linear-gradient(#ff00cc, #333399); -webkit-background-clip: text;
             -webkit-text-fill-color: transparent; margin-bottom: 0px;
         }
+
+        /* CORREÇÃO DO LAYOUT: Força o conteúdo principal a ter largura máxima limitada para simular celular no desktop */
+        .main [data-testid="stVerticalBlock"] {
+            max-width: 450px !important; /* Limita a largura principal */
+            margin-left: auto;
+            margin-right: auto;
+        }
+        
+        /* Box da Imagem */
         .media-box {
             border: 3px solid #ff00cc; border-radius: 20px; overflow: hidden;
             box-shadow: 0 0 20px rgba(255, 0, 204, 0.5); margin-bottom: 20px; background: black;
@@ -221,6 +232,7 @@ st.markdown("""
         }
         .media-box img, .media-box video { width: 100%; height: 100%; object-fit: cover; }
 
+        /* Chat */
         .chat-container {
             background: rgba(0, 0, 0, 0.3); border-radius: 15px; padding: 15px;
             height: 350px; overflow-y: auto; display: flex; flex-direction: column-reverse;
@@ -287,7 +299,7 @@ with st.expander("🛍️ Loja & Guarda-Roupa", expanded=False):
             if os.path.exists(roupa):
                 with cols[idx % 3]:
                     st.image(roupa, use_container_width=True)
-                    if st.button("Usar", key=f"use_{idx}", on_click=vestir_roupa_acao, args=(roupa,)):
+                    if st.button("Usar", key=f"use_{idx}", on_click=vestir_roupa_acao, args=(ropa,)):
                         st.rerun()
 
 # 3. Área de Chat
